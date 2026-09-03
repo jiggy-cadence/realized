@@ -1,0 +1,12 @@
+{
+  "name": "graph-risk-monitor",
+  "version": "0.1.0",
+  "description": "AI risk-monitor agent using The Graph Subgraph MCP as its live blockchain data source. Built for ETHOnline 2026 (The Graph — Best AI Tooling or AI Use Case, Net-New pool).",
+  "main": "monitor.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node monitor.js",
+    "test": "node test/scoring.test.js"
+  },
+  "license": "MIT"
+}
