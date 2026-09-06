@@ -1,7 +1,0 @@
-{
-  "_comment": "Recorded example position for scoring-logic demonstration WITHOUT a live Graph Gateway API key. Numbers are illustrative of a real Aave-style near-liquidation position shape, not pulled from a live query. Swapped for real Subgraph MCP results the moment GRAPH_GATEWAY_API_KEY is set — this file is never presented as live data.",
-  "wallet": "0xExampleWalletNotLive",
-  "collateralUsd": 42000,
-  "debtUsd": 31000,
-  "liquidationThreshold": 0.825
-}
