@@ -1,0 +1,122 @@
+#!/usr/bin/env node
+/**
+ * realized-lp-mcp — MCP server exposing LP ground truth from The Graph.
+ *
+ * Tools:
+ *   realized_return(poolId, days)  -> what LPs actually earned vs what the UI advertises
+ *   audit_pools(limit, gate)       -> corpus-wide audit + canary + sensitivity
+ *   explain_gap(poolId)            -> plain-language verdict with the evidence chain
+ */
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  gatewayUrl, fetchPool, fetchTopPools, scorePool, summarize, sensitivity, DEFAULT_LIVENESS,
+} from '../lib/realized.js';
+
+const API_KEY = process.env.GRAPH_API_KEY;
+const URL = () => gatewayUrl(API_KEY);
+
+const TOOLS = [
+  {
+    name: 'realized_return',
+    description:
+      'What LPs ACTUALLY earned in a Uniswap v3 pool over a historical window: fee income minus '
+      + 'impermanent loss, from The Graph. Compares against the fees-only APR that DEX UIs advertise '
+      + '(which cannot go negative by construction). Returns measurable:false rather than a fake zero '
+      + 'when the window cannot be priced.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        poolId: { type: 'string', description: 'Uniswap v3 pool address (0x...)' },
+        days: { type: 'number', description: 'Window length in days (default 30)', default: 30 },
+      },
+      required: ['poolId'],
+    },
+  },
+  {
+    name: 'audit_pools',
+    description:
+      'Audit many live pools at once: how many advertise a positive APR while LPs actually lost money. '
+      + 'Includes a self-canary (stable/stable pairs must show ~0 impermanent loss) and a sensitivity '
+      + 'table across three liveness gates, so a finding that only exists at one cutoff is visible as a parameter.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'How many pools to fetch (default 250)', default: 250 },
+        days: { type: 'number', default: 30 },
+      },
+    },
+  },
+  {
+    name: 'explain_gap',
+    description: 'Plain-language verdict for one pool with the numbers that produced it.',
+    inputSchema: {
+      type: 'object',
+      properties: { poolId: { type: 'string' }, days: { type: 'number', default: 30 } },
+      required: ['poolId'],
+    },
+  },
+];
+
+const GATES = [
+  { label: 'loose  (>=20d, $10k 7d vol, $100k TVL)', gate: { minActiveDays: 20, minRecent7dVolumeUsd: 10_000, minTvlUsd: 100_000 } },
+  { label: 'mid    (>=25d, $50k 7d vol, $250k TVL)', gate: DEFAULT_LIVENESS },
+  { label: 'strict (>=28d, $250k 7d vol, $1M TVL)', gate: { minActiveDays: 28, minRecent7dVolumeUsd: 250_000, minTvlUsd: 1_000_000 } },
+];
+
+const ok = (obj) => ({ content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] });
+
+async function realizedReturn({ poolId, days = 30 }) {
+  const pool = await fetchPool(URL(), poolId, days);
+  if (!pool) return { error: `pool ${poolId} not found in the Uniswap v3 subgraph` };
+  return scorePool(pool);
+}
+
+async function auditPools({ limit = 250, days = 30 }) {
+  const pools = await fetchTopPools(URL(), { first: limit, days });
+  const scored = pools.map(scorePool);
+  const s = summarize(scored);
+  return {
+    ...s,
+    sensitivity: sensitivity(scored, GATES),
+    interpretation: s.canary.passed
+      ? `${s.misleadingCount}/${s.counts.liveVolatile} live pools advertise a positive APR while realized return (fees - IL) was negative.`
+      : 'CANARY FAILED OR UNPROVEN — do not quote these numbers.',
+  };
+}
+
+async function explainGap({ poolId, days = 30 }) {
+  const r = await realizedReturn({ poolId, days });
+  if (r.error || r.measurable === false) return r;
+  const verdict = r.misleading
+    ? `MISLEADING: advertises ${r.advertisedAprPct.toFixed(1)}% APR, LPs actually realized ${r.realizedAprPct.toFixed(1)}% annualized.`
+    : `Consistent: advertised ${r.advertisedAprPct.toFixed(1)}% APR vs realized ${r.realizedAprPct.toFixed(1)}% annualized.`;
+  return {
+    ...r,
+    verdict,
+    evidence: [
+      `window: ${r.windowDays} days of poolDayData from The Graph`,
+      `fees earned: $${Math.round(r.totalFeesUsd).toLocaleString()} on $${Math.round(r.entryTvlUsd).toLocaleString()} entry TVL = ${r.feeReturnPct.toFixed(2)}%`,
+      `price ratio ${r.priceRatio.toFixed(4)} -> impermanent loss ${r.impermanentLossPct.toFixed(2)}%`,
+      `realized = ${r.feeReturnPct.toFixed(2)}% + (${r.impermanentLossPct.toFixed(2)}%) = ${r.realizedReturnPct.toFixed(2)}%`,
+      'advertised APR is fees-only and annualized: it has no price term and cannot be negative.',
+    ],
+  };
+}
+
+const server = new Server({ name: 'realized-lp-mcp', version: '0.1.0' }, { capabilities: { tools: {} } });
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  const { name, arguments: args = {} } = req.params;
+  try {
+    if (name === 'realized_return') return ok(await realizedReturn(args));
+    if (name === 'audit_pools') return ok(await auditPools(args));
+    if (name === 'explain_gap') return ok(await explainGap(args));
+    return ok({ error: `unknown tool ${name}` });
+  } catch (e) {
+    return ok({ error: String(e.message || e) });
+  }
+});
+
+await server.connect(new StdioServerTransport());
