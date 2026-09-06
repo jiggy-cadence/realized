@@ -68,7 +68,16 @@ Things that are true and inconvenient, kept here on purpose:
 - **"LPs lose to HODL" is not our discovery.** Topaze Blue / Bancor established that in 2021.
   Our contribution is not the loss — it is the *calibration of the advertised metric*.
 - **DefiLlama already ships yield predictions** (11,489 pools carry `predictedClass` /
-  `predictedProbability`). What nobody publishes is whether those predictions were *right*.
+  `predictedProbability`). What nobody publishes is whether those predictions were *right* —
+  **so we graded them.** First attempt (live API only) wrongly concluded no retrospective grade
+  was possible; the Wayback Machine has 517 archived `/pools` snapshots back to Oct 2022 with
+  the full predictions payload intact. Graded 1,337 prediction-instances across 26 snapshots
+  and 69 pools against DefiLlama's own later apy history: **58.5% accuracy vs a 55.3% majority-
+  class baseline (+3.2pp edge)** at a 5% move-size band; the figure moves 51%→65% across bands
+  so no single number is load-bearing, but stated confidence is honestly ordered (56/59/60% at
+  confidence 1/2/3). See `data/llama-grade-backdated.json` and
+  `scripts/grade-llama-backdated.py`. Their prediction is mildly skillful about a variable
+  (fee-only apy) that the ceiling test above shows barely matters to LP outcome.
 - **The liveness gate is imperfect.** Activity/volume/TVL alone let dead tokens through;
   `priceCollapsed()` closes most of that, with the threshold set from *observed* depeg data
   (real depegs bottomed at 2–4% of peak, so a <1% cutoff would have caught none of them).
