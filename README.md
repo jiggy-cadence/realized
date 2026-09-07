@@ -61,6 +61,89 @@ the more the advertised number lies to you.**
 > fee uplift because we cannot measure per-position fees from pool-level data. The
 > **direction** of the defect is what survives; treat the magnitudes as bounded by that caveat.
 
+### It is not one lucky month, and it is not one chain
+
+Every number above came from a single 30-day window ending the day we ran it — one draw.
+"34–62% of pools mislead" could have been a fact about DeFi or a fact about August 2026, and
+nothing in the repo could tell the difference. So we re-ran the whole instrument twice more.
+
+**Stability check** ([`scripts/walk-forward.js`](scripts/walk-forward.js) →
+[`data/walkforward.json`](data/walkforward.json)): 13 overlapping 30-day windows over 210 days of
+mainnet. 13 of 13 trusted, 0 untrusted, defect present in every one — tight-range min 44%,
+median 59%, max 69%.
+
+> Those 13 windows step every 15 days but span 30, so adjacent windows share half their data.
+> They are **not** independent samples. It is a stability check, not a hypothesis test.
+
+**Independent months, four chains** ([`scripts/history-run.js`](scripts/history-run.js) →
+[`data/history.json`](data/history.json)): strictly **non-overlapping** 30-day tiles — no shared
+days, so the window count is a real sample count.
+
+| chain | trusted months | oldest | tight ±1.25x | moderate ±2x | full-range |
+|---|---|---|---|---|---|
+| mainnet | 30 | 2024-04-20 | 26–69% (med 54%) | 23–57% (med 39%) | 11–43% (med 23%) |
+| arbitrum | 30 | 2024-04-20 | 31–87% (med 60%) | 14–75% (med 46%) | 3–58% (med 26%) |
+| base | 27 | 2024-04-20 | 55–95% (med 67%) | 38–82% (med 54%) | 18–57% (med 33%) |
+| polygon | 23 | 2024-04-20 | 17–92% (med 56%) | 4–91% (med 43%) | 0–68% (med 21%) |
+
+**110 independent monthly windows across 4 chains.** The defect is present on every chain and in
+nearly every month. Base is worst: its *best* month still had 55% of pools advertising a positive
+APR to a tight-range LP who lost money.
+
+**No Wayback Machine required.** We were about to reconstruct history by scraping archived DeFi
+dashboards. Checked the primary source first: `poolDayData` reaches **2021-05-05** on mainnet
+(1,952 days for USDC/WETH). The subgraph carries full history natively — no archive gaps, no HTML
+parsing, no third-party copy. One query saved an entire subsystem.
+
+**Chains reported as unavailable, never as clean.** Optimism's subgraph answers, but only 29 pools
+clear the TVL floor, leaving n=12 per window — below our n≥20 bar, so all 30 windows are marked
+`trusted: false` and **no Optimism number is quoted anywhere**. BNB, Celo and Avalanche return
+`bad indexers` / `no allocations` on the decentralized network. A chain we could not measure is
+never reported as a chain without the defect.
+
+### Not a Uniswap artifact
+
+Everything above is Uniswap v3. If the defect lived only there, the honest headline would be
+"Uniswap's advertised APR is broken" — a much smaller claim. So we ran the **same instrument,
+unchanged**, on an independent DEX: [`scripts/cross-dex.js`](scripts/cross-dex.js) →
+[`data/cross-dex.json`](data/cross-dex.json).
+
+| venue | chain | trusted months | tight ±1.25x | moderate ±2x | full-range |
+|---|---|---|---|---|---|
+| **Aerodrome Slipstream** | base | 24 | 23–69% (med 51%) | 12–63% (med 30%) | 0–43% (med 16%) |
+
+Different team, different codebase, different incentive model (veAERO emissions rather than pure
+fee capture) — **same defect, same shape, same range-ordering.** It is a property of how
+concentrated liquidity advertises itself, not a quirk of one DEX.
+
+**SushiSwap v3 is reported as unmeasurable, not as clean.** Its subgraph answers, but only 8 pools
+clear the $250k TVL floor and none is a stable/stable pair — so the canary cannot prove the
+instrument works there. All 30 windows are `trusted: false` and **no SushiSwap number is quoted**,
+including the 12.5% sitting in the raw JSON. PancakeSwap v3 (BSC + Ethereum), QuickSwap v3 and
+Camelot v3 return `bad indexers` / `subgraph not found`. Six venues probed, two answered, one
+could be validated.
+
+### The volatility check is a falsification test, not a finding
+
+Impermanent loss is *mathematically* a function of price divergence, so the defect **must** get
+worse in volatile months. That is a prediction our own theory makes — if the data did not show it,
+our instrument would be broken. Across 110 windows, misleading% vs realized volatility:
+
+| range | Pearson | Spearman |
+|---|---|---|
+| tight | 0.430 | 0.572 |
+| moderate | 0.341 | 0.447 |
+| wide | 0.303 | 0.384 |
+| full | 0.235 | 0.285 |
+
+Positive, and monotonically stronger as the range tightens — exactly what the math requires. We
+ran it to try to break ourselves and failed to.
+
+> **This is NOT evidence about macro, equities, or crypto beta.** We did not test those series and
+> will not imply we did. With enough candidate predictors you can find a "relationship" to
+> anything. A correlation predicted in advance from an identity is a self-check; a correlation
+> found by fishing would be a story.
+
 ### Per-pool trust: which pools' advertised APR has historically been honest
 
 Walk-forward: does advertised APR at day *T* predict realized return over *T..T+30*?
@@ -140,6 +223,19 @@ Every number here is gated on instruments proving they can find a known-present 
   to write if it drops below 0.3.
 - **Concentrated IL is checked against the v2 closed form at four range widths**, asserting the
   convergence *rate* rather than a tuned tolerance.
+- **Every historical window runs its own canary.** A window that cannot prove its instrument works
+  is emitted as `trusted: false`, never silently dropped — "we could not measure this month" and
+  "this month was fine" must not look the same in the output.
+- **Survivorship bias is disclosed and points against us.** Pools are ranked by *current* volume,
+  so pools that died are absent from historical windows. That makes the past look *better* than it
+  was, weakening our thesis rather than inflating it. The subgraph exposes no point-in-time
+  ranking, so we state the bias instead of pretending to correct it.
+- **Base first returned 0 trusted windows out of 30, and that was the canary working.** The top 80
+  Base pools by volume contained no stable/stable pair, so the instrument could not prove it
+  measures IL correctly and refused to certify. The fix was to *fetch the canary its reference
+  pools* — never to weaken the canary. Those pools are validation-only and excluded from every
+  headline. An instrument that confidently reports a number it cannot validate is the exact
+  failure this repo exists to prevent.
 
 ## Run it
 
@@ -150,6 +246,8 @@ GRAPH_API_KEY=... node test/canary.test.js --live
 GRAPH_API_KEY=... node scripts/build-corpus.js   # single-window corpus
 GRAPH_API_KEY=... node scripts/walk-forward.js   # 13 overlapping windows, mainnet
 GRAPH_API_KEY=... node scripts/history-run.js    # 110 independent months, 4 chains
+GRAPH_API_KEY=... node scripts/cross-dex.js      # Aerodrome + SushiSwap, same instrument
+node scripts/build-report.js                     # render report.html from the JSON
 ```
 
 The `realized_return` tool takes an optional **`rangeWidthX`** — your actual concentrated
