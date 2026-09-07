@@ -69,15 +69,20 @@ Things that are true and inconvenient, kept here on purpose:
   Our contribution is not the loss — it is the *calibration of the advertised metric*.
 - **DefiLlama already ships yield predictions** (11,489 pools carry `predictedClass` /
   `predictedProbability`). What nobody publishes is whether those predictions were *right* —
-  **so we graded them.** First attempt (live API only) wrongly concluded no retrospective grade
-  was possible; the Wayback Machine has 517 archived `/pools` snapshots back to Oct 2022 with
-  the full predictions payload intact. Graded 1,337 prediction-instances across 26 snapshots
-  and 69 pools against DefiLlama's own later apy history: **58.5% accuracy vs a 55.3% majority-
-  class baseline (+3.2pp edge)** at a 5% move-size band; the figure moves 51%→65% across bands
-  so no single number is load-bearing, but stated confidence is honestly ordered (56/59/60% at
-  confidence 1/2/3). See `data/llama-grade-backdated.json` and
-  `scripts/grade-llama-backdated.py`. Their prediction is mildly skillful about a variable
-  (fee-only apy) that the ceiling test above shows barely matters to LP outcome.
+  **so we graded them**, twice, because the first grade was wrong in two different ways.
+  Attempt 1: wrongly concluded no retrospective archive exists (it does — Wayback Machine,
+  517 snapshots of `/pools` back to Oct 2022, full predictions payload intact). Attempt 2
+  (n=69 pools, capped by rate-limiting): reported a clean **+3.2pp edge over baseline**.
+  Attempt 3, same method with backoff and no fetch failures (n=459 pools, 8,092 graded
+  instances): **the edge flips sign across bands** (strict 0%: −1.4pp: WORSE than guessing;
+  mid 5%: +4.5pp; loose 10%: +1.5pp). Overall accuracy is not a finding — it moves with the
+  band, and the small sample's clean number was a fluke of which pools survived rate-limiting.
+  **What DID survive the 6x larger sample: their stated confidence is genuinely calibrated.**
+  bin1 n=1987 edge −0.3pp, bin2 n=2639 edge +3.1pp, bin3 n=3466 edge **+8.3pp** — monotonic,
+  wide spread, holds up. The model's raw accuracy is a mirage; its self-reported confidence is
+  an honest, usable signal. See `data/llama-grade-backdated.json` and
+  `scripts/grade-llama-backdated.py`. Either way: the target variable (fee-only apy) was
+  already shown near-orthogonal to actual LP outcome (ceiling test above, corr=−0.008).
 - **The liveness gate is imperfect.** Activity/volume/TVL alone let dead tokens through;
   `priceCollapsed()` closes most of that, with the threshold set from *observed* depeg data
   (real depegs bottomed at 2–4% of peak, so a <1% cutoff would have caught none of them).
