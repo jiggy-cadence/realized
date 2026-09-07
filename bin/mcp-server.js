@@ -13,6 +13,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import {
   gatewayUrl, fetchPool, fetchTopPools, scorePool, summarize, sensitivity, DEFAULT_LIVENESS,
 } from '../lib/realized.js';
+import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
 
 const API_KEY = process.env.GRAPH_API_KEY;
 const URL = () => gatewayUrl(API_KEY);
@@ -30,6 +31,13 @@ const TOOLS = [
       properties: {
         poolId: { type: 'string', description: 'Uniswap v3 pool address (0x...)' },
         days: { type: 'number', description: 'Window length in days (default 30)', default: 30 },
+        rangeWidthX: {
+          type: 'number',
+          description: 'Your concentrated-liquidity range as a half-width factor: 1.25 = a tight +/-25% band, '
+            + '2 = a typical managed position, 4 = wide, omit for full-range. This MATTERS: v3 IL is amplified '
+            + 'inside a band, and if price left your band the loss is realized, not impermanent. Full-range is '
+            + 'the most generous case for the pool.',
+        },
       },
       required: ['poolId'],
     },
@@ -67,10 +75,28 @@ const GATES = [
 
 const ok = (obj) => ({ content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] });
 
-async function realizedReturn({ poolId, days = 30 }) {
+async function realizedReturn({ poolId, days = 30, rangeWidthX }) {
   const pool = await fetchPool(URL(), poolId, days);
   if (!pool) return { error: `pool ${poolId} not found in the Uniswap v3 subgraph` };
-  return scorePool(pool);
+  const scored = scorePool(pool);
+  if (!scored.measurable || !(rangeWidthX > 1)) return scored;
+  const il = concentratedIlPct(scored.priceRatio, rangeWidthX);
+  const realizedPct = scored.feeReturnPct + il;
+  const realizedApr = (realizedPct / scored.windowDays) * 365;
+  const left = outOfRange(scored.priceRatio, rangeWidthX);
+  return {
+    ...scored,
+    yourRange: {
+      rangeWidthX,
+      impermanentLossPct: il,
+      realizedReturnPct: realizedPct,
+      realizedAprPct: realizedApr,
+      outOfRange: left,
+      note: left
+        ? 'Price LEFT your band during this window. You are fully converted into the losing asset — this loss is realized, not impermanent.'
+        : 'Price stayed inside your band for the whole window.',
+    },
+  };
 }
 
 async function auditPools({ limit = 250, days = 30 }) {
@@ -98,9 +124,14 @@ async function explainGap({ poolId, days = 30 }) {
     evidence: [
       `window: ${r.windowDays} days of poolDayData from The Graph`,
       `fees earned: $${Math.round(r.totalFeesUsd).toLocaleString()} on $${Math.round(r.entryTvlUsd).toLocaleString()} entry TVL = ${r.feeReturnPct.toFixed(2)}%`,
-      `price ratio ${r.priceRatio.toFixed(4)} -> impermanent loss ${r.impermanentLossPct.toFixed(2)}%`,
+      `price ratio ${r.priceRatio.toFixed(4)} -> impermanent loss ${r.impermanentLossPct.toFixed(2)}% (full-range)`,
       `realized = ${r.feeReturnPct.toFixed(2)}% + (${r.impermanentLossPct.toFixed(2)}%) = ${r.realizedReturnPct.toFixed(2)}%`,
       'advertised APR is fees-only and annualized: it has no price term and cannot be negative.',
+      r.byRange
+        ? `concentrated: tight(+/-1.25x) ${r.byRange.tight?.realizedReturnPct?.toFixed(2)}%${r.byRange.tight?.outOfRange ? ' OUT OF RANGE' : ''}, `
+          + `moderate(+/-2x) ${r.byRange.moderate?.realizedReturnPct?.toFixed(2)}%${r.byRange.moderate?.outOfRange ? ' OUT OF RANGE' : ''} `
+          + '— full-range is the generous case; real v3 LPs concentrate and eat amplified IL.'
+        : '',
     ],
   };
 }

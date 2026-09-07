@@ -9,7 +9,8 @@
  * Run offline (pure math): node test/canary.test.js
  * Run with live data too:  GRAPH_API_KEY=xxx node test/canary.test.js --live
  */
-import { impermanentLossPct, scorePool, summarize, gatewayUrl, fetchTopPools, priceCollapsed, isLive } from '../lib/realized.js';
+import { impermanentLossPct, scorePool, summarize, gatewayUrl, fetchTopPools, priceCollapsed, isLive, pearson, spearman } from '../lib/realized.js';
+import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
 
 let failed = 0;
 const check = (name, got, want, tol = 0.01) => {
@@ -20,7 +21,42 @@ const check = (name, got, want, tol = 0.01) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : `  (got ${got}, want ${want})`}`);
 };
 
-console.log('--- impermanent loss: known constant-product values ---');
+console.log('--- concentrated (v3) IL: must converge to v2 AT THE ANALYTIC RATE ---');
+// Do NOT assert "v3 == v2 within epsilon" for a large range. It does not, and picking an
+// epsilon that passes is choosing a parameter. The error falls as O(1/sqrt(w)), so a 100x
+// wider range must shrink it ~10x. That is a rate, and a rate cannot be fudged by a knob.
+// This test was written after the naive epsilon version failed and nearly got the correct
+// new math thrown away as broken (2026-09-07).
+{
+  const probe = [0.5, 0.8, 1.25, 2, 4];
+  const err = (w) => Math.max(...probe.map((r) => Math.abs(concentratedIlPct(r, w) - impermanentLossPct(r))));
+  let prev = null;
+  for (const w of [1e2, 1e4, 1e6, 1e8]) {
+    const e = err(w);
+    if (prev !== null) {
+      const shrink = prev / e;
+      const ok = shrink > 8 && shrink < 12;
+      if (!ok) failed++;
+      console.log(`${ok ? 'PASS' : 'FAIL'}  w=1e${Math.log10(w)}: error shrank ${shrink.toFixed(1)}x per 100x range (expect ~10x)`);
+    }
+    prev = e;
+  }
+}
+check('concentrated IL at r=1 is exactly 0 (tight range)', concentratedIlPct(1, 1.25), 0, 1e-9);
+check('concentrated IL at r=1 is exactly 0 (wide range)', concentratedIlPct(1, 4), 0, 1e-9);
+check('concentrated IL is never positive', [0.05, 0.5, 0.9, 1, 1.1, 2, 50].every((r) => concentratedIlPct(r, 2) <= 1e-9) ? 1 : 0, 1);
+check('tighter range hurts more than wider at the same move', concentratedIlPct(1.5, 1.25) < concentratedIlPct(1.5, 4) ? 1 : 0, 1);
+check('full-range v3 ~ v2 to 2 decimal places', concentratedIlPct(2, 1e8), impermanentLossPct(2), 0.01);
+check('outOfRange true when price leaves the band', outOfRange(1.5, 1.25) ? 1 : 0, 1);
+check('outOfRange false inside the band', outOfRange(1.1, 1.25) ? 1 : 0, 0);
+
+console.log('\n--- correlation helpers: must find a signal that is known to be there ---');
+check('pearson(x, x) = 1', pearson([1, 2, 3, 4, 9], [1, 2, 3, 4, 9]), 1, 1e-9);
+check('pearson(x, -x) = -1', pearson([1, 2, 3, 4, 9], [-1, -2, -3, -4, -9]), -1, 1e-9);
+check('spearman survives a monotone nonlinearity where pearson would not', spearman([1, 2, 3, 4], [1, 4, 9, 100]), 1, 1e-9);
+check('degenerate input returns null, not NaN', pearson([1, 1, 1], [1, 2, 3]), null);
+
+console.log('\n--- impermanent loss: known constant-product values ---');
 check('IL at r=1 (no divergence) is exactly 0', impermanentLossPct(1), 0, 1e-9);
 check('IL at r=2 (price doubled) ~ -5.72%', impermanentLossPct(2), -5.719);
 check('IL at r=0.5 (price halved) ~ -5.72%', impermanentLossPct(0.5), -5.719);
