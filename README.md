@@ -148,7 +148,8 @@ npm install
 node test/canary.test.js                  # offline math + negative control
 GRAPH_API_KEY=... node test/canary.test.js --live
 GRAPH_API_KEY=... node scripts/build-corpus.js   # single-window corpus
-GRAPH_API_KEY=... node scripts/walk-forward.js   # 13 windows over 210 days
+GRAPH_API_KEY=... node scripts/walk-forward.js   # 13 overlapping windows, mainnet
+GRAPH_API_KEY=... node scripts/history-run.js    # 110 independent months, 4 chains
 ```
 
 The `realized_return` tool takes an optional **`rangeWidthX`** — your actual concentrated
