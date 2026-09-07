@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>REALIZED — what did you actually make as an LP?</title>
+<meta name="description" content="Advertised LP APR has no price term, so it cannot show a loss. Search any Uniswap v3 or Aerodrome pool and see what liquidity providers actually took home.">
+<link rel="alternate" type="application/json" href="api/pools.json" title="Raw data (agent-usable)">
+<style>
+:root{--bg:#0b0f14;--fg:#e6edf3;--dim:#7d8590;--acc:#e07a5f;--good:#3fb950;--line:#1c2229;--card:#111820}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:900px;margin:0 auto;padding:40px 20px 80px}
+header{margin-bottom:22px}
+.brand{font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:12px}
+.brand a{color:var(--dim);text-decoration:none;font-weight:600;letter-spacing:.04em;text-transform:none;font-size:11.5px;border:1px solid var(--line);border-radius:5px;padding:3px 8px}
+.brand a:hover{color:var(--fg);border-color:#333}
+h1{font-size:32px;line-height:1.18;letter-spacing:-.025em;margin:0 0 10px;max-width:20ch}
+h1 em{color:var(--acc);font-style:normal}
+.sub{color:var(--dim);max-width:64ch;margin:0;font-size:15px}
+
+/* --- search-first: this is the primary control, not the range slider --- */
+.searchwrap{position:relative;margin:28px 0 0}
+.searchbox{display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:4px 4px 4px 16px;transition:border-color .15s}
+.searchbox:focus-within{border-color:var(--acc)}
+.searchbox svg{flex:none;opacity:.5}
+#q{flex:1;background:none;border:0;outline:0;color:var(--fg);font-size:17px;padding:13px 4px;font-family:inherit}
+#q::placeholder{color:#4b5560}
+.clr{background:#1a212a;border:0;color:var(--dim);width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:15px;margin-right:6px;display:none}
+.clr:hover{color:var(--fg)}
+.dropdown{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#131a22;border:1px solid var(--line);border-radius:11px;box-shadow:0 16px 40px rgba(0,0,0,.5);z-index:20;max-height:340px;overflow-y:auto;display:none}
+.dropdown.open{display:block}
+.opt{padding:11px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #1a212a}
+.opt:last-child{border-bottom:0}
+.opt:hover,.opt.hi{background:#1a212a}
+.opt .p{font-weight:600}
+.opt .meta{color:var(--dim);font-size:12px;text-align:right}
+.opt .venue{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:#5a6572;margin-top:2px}
+.nomatch{padding:16px;color:var(--dim);font-size:13.5px;text-align:center}
+
+/* --- card shown once a pool is picked --- */
+#card{display:none;margin-top:22px}
+.hero{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 26px 22px}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.hero-pair{font-size:24px;font-weight:700;letter-spacing:-.01em}
+.hero-tags{color:var(--dim);font-size:13px;margin-top:3px}
+.backbtn{background:none;border:1px solid var(--line);color:var(--dim);border-radius:7px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+.backbtn:hover{color:var(--fg);border-color:#333}
+
+.rangepick{display:flex;gap:7px;flex-wrap:wrap;margin:22px 0 4px}
+.rbtn{background:#0e141b;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:9px 14px;font-size:13.5px;cursor:pointer;font-family:inherit;font-weight:600;text-align:left}
+.rbtn:hover{border-color:#3a4048;color:var(--fg)}
+.rbtn.sel{border-color:var(--acc);background:rgba(224,122,95,.1);color:var(--fg)}
+.rbtn small{display:block;font-weight:400;color:var(--dim);font-size:11px;margin-top:2px}
+.rangecap{color:var(--dim);font-size:12.5px;margin:8px 0 0}
+
+.verdict{display:flex;gap:28px;flex-wrap:wrap;margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
+.verdict div b{display:block;font-size:29px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.15}
+.verdict div span{font-size:12px;color:var(--dim)}
+.bad{color:var(--acc)}.ok{color:var(--good)}
+.callout{margin-top:18px;padding:13px 16px;border-radius:9px;font-size:13.5px;line-height:1.5}
+.callout.warn{background:rgba(224,122,95,.1);border:1px solid rgba(224,122,95,.28);color:#f0b8a8}
+.callout.fine{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.22);color:#a8dfb0}
+
+/* --- top pools browse table (secondary, below the fold) --- */
+h2{font-size:15px;margin:44px 0 4px;color:var(--dim);font-weight:600;letter-spacing:.02em}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px}
+th{text-align:right;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600;padding:0 10px 9px 0;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer}
+th:first-child,td:first-child{text-align:left}
+th:hover{color:var(--fg)}
+td{padding:10px 10px 10px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;cursor:pointer}
+td:first-child{cursor:pointer}
+tbody tr:hover{background:#0f151c}
+.hide-s{display:table-cell}
+@media(max-width:680px){.hide-s{display:none}}
+
+details{margin-top:44px;border-top:1px solid var(--line);padding-top:16px}
+summary{cursor:pointer;color:var(--dim);font-size:13px}
+summary:hover{color:var(--fg)}
+details h3{font-size:14.5px;margin:22px 0 6px}
+details p,details li{color:#a9b4bf;font-size:13.5px;max-width:74ch}
+code{background:#1a212a;padding:2px 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.foot{margin-top:30px;color:var(--dim);font-size:12px}
+a{color:var(--acc)}
+</style></head><body><div class="wrap">
+
+<header>
+  <div class="brand">Realized <a href="api/pools.json">API for agents ↗</a></div>
+  <h1>Your yield dashboard <em>can't</em> tell you that you lost money.</h1>
+  <p class="sub">DEX-advertised APR is fee income annualized — it has no price term, so it's positive
+  no matter what actually happened to your money. Search a pool and see what LPs really took home.</p>
+</header>
+
+<div class="searchwrap">
+  <div class="searchbox">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="q" type="text" placeholder="Search a pool — try WETH, USDC, PEPE…" autocomplete="off">
+    <button class="clr" id="clr">✕</button>
+  </div>
+  <div class="dropdown" id="dd"></div>
+</div>
+
+<div id="card"></div>
+
+<h2>Or browse the 202 pools we track</h2>
+<table id="tbl"><thead><tr>
+  <th data-k="pair">Pool</th>
+  <th data-k="tvl">TVL</th>
+  <th data-k="adv">Advertised</th>
+  <th data-k="realApr" class="hide-s">Typical-range reality</th>
+</tr></thead><tbody id="tb"></tbody></table>
+
+<details>
+<summary>Method, limits, and everything we got wrong on the way here</summary>
+
+<h3>What is being computed</h3>
+<p>Realized return = fee income <b>+ impermanent loss</b> (IL is always ≤ 0). Advertised APR is the most
+recent day's fees annualized on current TVL — the standard DEX-UI formula. Both come from The Graph's
+historical <code>poolDayData</code>: per-day fee totals in USD are <b>derived aggregates produced by the
+indexer</b> and do not exist on-chain, so there is no RPC path to this dataset.</p>
+<p>IL is recomputed in your browser from the pool's price ratio and the range you pick, using the same
+closed form as <code>lib/concentrated.js</code>, which the test suite pins against the standard v2 formula
+at four range widths. Nothing is precomputed per range.</p>
+
+<h3>Why the range matters</h3>
+<p>Uniswap v3 LPs <b>concentrate</b> into a price band. Inside a band IL is amplified; once price leaves
+the band you're fully converted into the losing asset and the loss is no longer impermanent. Full-range
+is the <b>most generous possible case for the pool</b>, which is why it's the last option, not the default.</p>
+<p>The fee term is held constant across ranges, which is deliberately unfair to us: concentrating earns
+more fees too, so some IL is earned back. We can't measure per-position fees from pool-level data, so we
+didn't model the uplift. The <b>direction</b> is what survives; treat magnitudes as bounded by that.</p>
+
+<h3>How well does it hold up</h3>
+<p>110 independent (non-overlapping) 30-day windows across 4 chains, plus the
+same instrument run unchanged on <b>Aerodrome Slipstream</b> — a different team, codebase and incentive
+model — showing the same defect, same shape. Full tables: <a href="realized.html">the measurement report</a>.</p>
+
+<h3>Things that are true and inconvenient</h3>
+<ul>
+<li><b>An earlier headline of <code>corr = 0.06</code> is retracted.</b> It existed in no committed code and
+does not reproduce. Recomputed honestly it spans Pearson 0.08–0.16 / Spearman 0.30–0.33 depending on gate,
+trimming and estimator — that spread <i>is</i> the finding.</li>
+<li><b>We shipped the Uniswap v2 formula on a v3 venue</b> before 2026-09-07, silently reporting the best
+case for every pool. Fixed; the old number survives as the "full range" option so the change stays auditable.</li>
+<li><b>Venues we couldn't validate are excluded, not called clean.</b> A venue only appears if its
+stable/stable pairs prove ~0 IL in the same run. uniswap-v3/base did not clear that bar this run and is absent above.
+SushiSwap v3, PancakeSwap v3, QuickSwap v3 and Camelot v3 are reported as unmeasurable, not as clean.</li>
+<li><b>Survivorship bias, and it points against us.</b> Pools are ranked by <i>current</i> volume, so pools
+that died are absent — making the past look better than it was.</li>
+<li><b>"LPs lose to HODL" is not our discovery</b> (Topaze Blue / Bancor, 2021). Our contribution is
+calibrating the <i>advertised metric</i> against it, live, per pool.</li>
+</ul>
+
+<h3>For agents</h3>
+<p>Raw JSON: <code>GET /api/pools.json</code> — documented schema + the IL formula inline, no key required,
+CORS-open. MCP server: <code>bin/mcp-server.js</code> exposes <code>find_pool(query)</code> (resolve
+"WETH/USDC" → poolId, no address needed), <code>realized_return</code>, <code>audit_pools</code>,
+<code>explain_gap</code>. Source: <a href="https://github.com/jiggy-cadence/realized">github.com/jiggy-cadence/realized</a>.</p>
+</details>
+
+<div class="foot">
+202 live pools · 4 validated venues · 30-day window ·
+data 2026-09-07 05:15 UTC · source: The Graph decentralized network.
+</div>
+</div>
+
+<script>
+const DATA = [{"id":"0x88e6a0c2","pair":"USDC/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":415734146,"r":1.311099,"fees":0.3235,"adv":0.745,"days":30},{"id":"0x8ad599c3","pair":"USDC/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":304956605,"r":1.307494,"fees":0.1802,"adv":0.623,"days":30},{"id":"0x4e68ccd3","pair":"WETH/USDT","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":296119813,"r":0.765245,"fees":1.4088,"adv":4.022,"days":30},{"id":"0xcbcdf962","pair":"WBTC/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":206275654,"r":1.066424,"fees":0.0375,"adv":0.063,"days":30},{"id":"0x99ac8ca7","pair":"WBTC/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":169655357,"r":0.816116,"fees":0.1618,"adv":0.15,"days":30},{"id":"0x4585fe77","pair":"WBTC/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":114003336,"r":1.06825,"fees":0.2368,"adv":0.459,"days":30},{"id":"0xc6962004","pair":"WETH/USDC","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":104626078,"r":0.7621,"fees":0.7282,"adv":1.562,"days":30},{"id":"0x11b815ef","pair":"WETH/USDT","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":75255827,"r":0.76319,"fees":0.2666,"adv":0.615,"days":30},{"id":"0xb2cc224c","pair":"WETH/USDC","dex":"aerodrome","chain":"base","fee":0.05,"tvl":67526425,"r":0.762241,"fees":0.7162,"adv":2.054,"days":30},{"id":"0x2f5e87c9","pair":"WBTC/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":65850194,"r":1.066738,"fees":0.7537,"adv":1.365,"days":30},{"id":"0xa6cc3c25","pair":"LINK/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":62779250,"r":0.81872,"fees":0.6466,"adv":2.067,"days":30},{"id":"0x9db9e0e5","pair":"WBTC/USDT","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":59098119,"r":0.816545,"fees":0.3522,"adv":0.849,"days":30},{"id":"0x70acdf2a","pair":"WETH/cbBTC","dex":"aerodrome","chain":"base","fee":0.05,"tvl":51760407,"r":0.939242,"fees":0.124,"adv":0.196,"days":30},{"id":"0xc2e9f25b","pair":"DAI/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":49873490,"r":1.306856,"fees":0.0565,"adv":0.141,"days":30},{"id":"0x1d42064f","pair":"UNI/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":44761081,"r":0.749146,"fees":0.8656,"adv":2.21,"days":30},{"id":"0xbafead7c","pair":"AUSD/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":34259148,"r":1.000019,"fees":0.0696,"adv":0.012,"days":30},{"id":"0xc31e54c7","pair":"WETH/USDC","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":33200420,"r":0.761813,"fees":0.0182,"adv":0.036,"days":30},{"id":"0x641c00a8","pair":"WETH/USDT","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":29279631,"r":0.76257,"fees":0.3112,"adv":0.694,"days":30},{"id":"0x11950d14","pair":"PEPE/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":28589126,"r":1.04926,"fees":0.0414,"adv":0.008,"days":30},{"id":"0x8f8ef111","pair":"WBTC/PAX","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":26674650,"r":1.552523,"fees":0.7745,"adv":1.179,"days":30},{"id":"0x56534741","pair":"WBTC/USDT","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":26637413,"r":0.814991,"fees":1.2536,"adv":2.363,"days":30},{"id":"0x4e962bb3","pair":"USDC/cbBTC","dex":"aerodrome","chain":"base","fee":0.05,"tvl":22808189,"r":1.230359,"fees":1.3969,"adv":3.482,"days":30},{"id":"0x60594a40","pair":"DAI/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":16691698,"r":1.309858,"fees":0.0253,"adv":0.048,"days":30},{"id":"0x5ab53ee1","pair":"AAVE/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":15069792,"r":0.879736,"fees":0.8697,"adv":1.868,"days":30},{"id":"0x45dda9cb","pair":"USDC/WETH","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":13680585,"r":1.312315,"fees":0.0244,"adv":0.041,"days":30},{"id":"0x7a415b19","pair":"WETH/weETH","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":13494007,"r":1.002923,"fees":0.0102,"adv":0.092,"days":30},{"id":"0xe8c6c922","pair":"MKR/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":12057409,"r":1.003248,"fees":0.0516,"adv":0.002,"days":30},{"id":"0x5969efdd","pair":"WBTC/USDT","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":11445638,"r":0.813373,"fees":0.5217,"adv":1.194,"days":30},{"id":"0xc473e2ae","pair":"WETH/USDC","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":11331002,"r":0.764853,"fees":0.8581,"adv":2.534,"days":30},{"id":"0xc7bbec68","pair":"WETH/USDT","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":11265103,"r":0.763135,"fees":0.4705,"adv":0.681,"days":30},{"id":"0xa3f558ae","pair":"LDO/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":10464798,"r":0.915373,"fees":0.0858,"adv":0.124,"days":30},{"id":"0x7ec6c9d9","pair":"WETH/VVV","dex":"aerodrome","chain":"base","fee":0.05,"tvl":10377356,"r":1.151403,"fees":0.3413,"adv":0.385,"days":30},{"id":"0xc275a739","pair":"USDT/USDf","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":10241727,"r":1.000262,"fees":0.0016,"adv":0,"days":30},{"id":"0xc6f78049","pair":"WETH/ARB","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":9897729,"r":1.701681,"fees":1.3749,"adv":6.871,"days":30},{"id":"0x433a0081","pair":"wTAO/WETH","dex":"uniswap-v3","chain":"mainnet","fee":1,"tvl":9683887,"r":0.978104,"fees":2.8993,"adv":18.173,"days":30},{"id":"0x109830a1","pair":"wstETH/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":9331038,"r":0.998359,"fees":0.1099,"adv":0.213,"days":30},{"id":"0x82321f3b","pair":"WETH/AERO","dex":"aerodrome","chain":"base","fee":0.3,"tvl":9148369,"r":0.98897,"fees":0.9399,"adv":3.255,"days":30},{"id":"0x5b70a158","pair":"PRIME/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":9061618,"r":0.995552,"fees":0.1151,"adv":0.007,"days":30},{"id":"0x3e66e55e","pair":"USDC/cbBTC","dex":"aerodrome","chain":"base","fee":1,"tvl":8911696,"r":1.230545,"fees":23.9413,"adv":53.29,"days":30},{"id":"0xe0554a47","pair":"USDC/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":8805856,"r":1.311197,"fees":1.424,"adv":3.23,"days":30},{"id":"0xe8f7c89c","pair":"WBTC/cbBTC","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":8452644,"r":1.001777,"fees":0.1114,"adv":0.222,"days":30},{"id":"0x9a772018","pair":"WBTC/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":8031874,"r":0.81483,"fees":0.1141,"adv":0.221,"days":30},{"id":"0xdbaeb7f0","pair":"PENDLE/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":7846833,"r":0.85934,"fees":0.4187,"adv":1.143,"days":30},{"id":"0x127452f3","pair":"WETH/SOL","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":7670132,"r":1.052357,"fees":0.2515,"adv":0.24,"days":30},{"id":"0xbe00ff35","pair":"USDC/AERO","dex":"aerodrome","chain":"base","fee":1,"tvl":7629405,"r":1.291345,"fees":2.5077,"adv":12.377,"days":30},{"id":"0x7b1e5d98","pair":"WETH/ONDO","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":7572043,"r":0.84269,"fees":0.3022,"adv":1.224,"days":30},{"id":"0xc200f21e","pair":"VIRTUAL/WETH","dex":"aerodrome","chain":"base","fee":0.3,"tvl":7398664,"r":1.009338,"fees":2.6933,"adv":8.357,"days":30},{"id":"0x50eaedb8","pair":"WBTC/WETH","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":7059436,"r":1.067513,"fees":0.1158,"adv":0.143,"days":30},{"id":"0x17c14d2c","pair":"WETH/USDC","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":6507793,"r":0.764941,"fees":0.0498,"adv":0.126,"days":30},{"id":"0x202a6012","pair":"WETH/weETH","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":6143122,"r":1.0018,"fees":0.0188,"adv":0.022,"days":30},{"id":"0x1aeedd37","pair":"WETH/GMX","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":6027093,"r":0.947182,"fees":0.1555,"adv":0.125,"days":30},{"id":"0x2f62f2b4","pair":"SHIB/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":5956356,"r":1.102755,"fees":0.0219,"adv":0.023,"days":30},{"id":"0xc3db44ad","pair":"ENA/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":5768033,"r":0.641502,"fees":1.4641,"adv":1.199,"days":30},{"id":"0x92560c17","pair":"WETH/ENS","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":5732271,"r":1.103348,"fees":0.0431,"adv":0.136,"days":30},{"id":"0xe936f007","pair":"RNDR/WETH","dex":"uniswap-v3","chain":"mainnet","fee":1,"tvl":5590063,"r":1.113459,"fees":0.1572,"adv":0.157,"days":30},{"id":"0xf8e349d1","pair":"USDC/SEI","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":5511452,"r":1.180214,"fees":1.27,"adv":7.276,"days":30},{"id":"0x468b8894","pair":"WETH/LINK","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":5473408,"r":1.214607,"fees":0.5054,"adv":3.369,"days":30},{"id":"0x970a7749","pair":"wM/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":5207123,"r":0.999997,"fees":0.0572,"adv":0.003,"days":30},{"id":"0x510100d5","pair":"RLB/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":5181393,"r":1.075802,"fees":0.0814,"adv":0.185,"days":30},{"id":"0xa3740945","pair":"WMATIC/USDC","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":4729652,"r":0.797688,"fees":0.0407,"adv":0.028,"days":30},{"id":"0xcda53b1f","pair":"ARB/USDC","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":4670000,"r":0.447741,"fees":0.1218,"adv":0.453,"days":30},{"id":"0x9e090524","pair":"HEX/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":4651303,"r":1.962888,"fees":0.1059,"adv":0.052,"days":30},{"id":"0x73a38006","pair":"tBTC/WBTC","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":4610923,"r":0.998144,"fees":0.2427,"adv":1.531,"days":30},{"id":"0xc4ce8e63","pair":"CULT/WETH","dex":"uniswap-v3","chain":"mainnet","fee":1,"tvl":4450780,"r":1.277942,"fees":0.2269,"adv":1.312,"days":30},{"id":"0x2982d329","pair":"wTAO/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":4334152,"r":0.971594,"fees":0.3713,"adv":2.5,"days":30},{"id":"0x95dbb3c7","pair":"EUROC/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":4269711,"r":0.995306,"fees":0.2242,"adv":0.239,"days":30},{"id":"0x92c63d0e","pair":"WETH/ARB","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":4187186,"r":1.700834,"fees":0.0894,"adv":0.841,"days":30},{"id":"0x4c54ff7f","pair":"NEXO/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":3965979,"r":1.149581,"fees":0.1354,"adv":0.012,"days":30},{"id":"0xdfe5f275","pair":"AERO/cbBTC","dex":"aerodrome","chain":"base","fee":0.3,"tvl":3885829,"r":0.945672,"fees":9.9809,"adv":31.073,"days":30},{"id":"0x149e36e7","pair":"WBTC/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":3844576,"r":1.064882,"fees":0.1248,"adv":0.182,"days":30},{"id":"0x24ee2c6b","pair":"QNT/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":3654845,"r":1.142518,"fees":0.2749,"adv":0.518,"days":30},{"id":"0x0392b12a","pair":"WETH/ZEN","dex":"aerodrome","chain":"base","fee":0.05,"tvl":3596128,"r":1.305089,"fees":1.0236,"adv":4.679,"days":30},{"id":"0x6546055f","pair":"XAUt/USDT","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":3576360,"r":0.982176,"fees":0.4219,"adv":1.031,"days":30},{"id":"0x4e829f8a","pair":"WETH/BRETT","dex":"aerodrome","chain":"base","fee":0.3,"tvl":3534256,"r":0.982089,"fees":0.9119,"adv":1.755,"days":30},{"id":"0xc45a81bc","pair":"WETH/TITANX","dex":"uniswap-v3","chain":"mainnet","fee":1,"tvl":3384704,"r":1.099485,"fees":0.2859,"adv":0.248,"days":30},{"id":"0x861a2922","pair":"WETH/wstETH","dex":"aerodrome","chain":"base","fee":0.01,"tvl":3366647,"r":1.001449,"fees":0.1532,"adv":0.05,"days":30},{"id":"0x9b08288c","pair":"WMATIC/USDT","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":3330720,"r":0.797775,"fees":2.8572,"adv":4.849,"days":30},{"id":"0x1c98562a","pair":"Metis/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":3253579,"r":1.03284,"fees":0.1293,"adv":4.22,"days":30},{"id":"0x47ca96ea","pair":"cbETH/WETH","dex":"aerodrome","chain":"base","fee":0.01,"tvl":3242149,"r":0.998288,"fees":0.1541,"adv":0.29,"days":30},{"id":"0x5ae13baa","pair":"PAXG/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":3213185,"r":0.983819,"fees":0.7295,"adv":1.361,"days":30},{"id":"0x4ccd0101","pair":"WETH/USDT","dex":"uniswap-v3","chain":"polygon","fee":0.3,"tvl":3144775,"r":0.765511,"fees":0.2259,"adv":0.437,"days":30},{"id":"0xb5f0b4ae","pair":"WETH/MORPHO","dex":"aerodrome","chain":"base","fee":0.3,"tvl":3130438,"r":1.043043,"fees":6.8944,"adv":18.731,"days":30},{"id":"0x9785ef59","pair":"WETH/USDT","dex":"aerodrome","chain":"base","fee":0.05,"tvl":3089917,"r":0.763057,"fees":4.379,"adv":8.484,"days":30},{"id":"0x919fa96e","pair":"WETH/CRV","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":3062487,"r":1.231152,"fees":0.3292,"adv":0.817,"days":30},{"id":"0xcc6d2f26","pair":"RLUSD/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":3051658,"r":0.999987,"fees":0.2241,"adv":0.001,"days":30},{"id":"0xeef1a950","pair":"WBTC/USDC","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":2865387,"r":0.814038,"fees":0.4841,"adv":1.199,"days":30},{"id":"0x16738431","pair":"WMATIC/WETH","dex":"uniswap-v3","chain":"polygon","fee":0.3,"tvl":2862916,"r":1.047167,"fees":0.109,"adv":0.043,"days":30},{"id":"0xe846373c","pair":"EURC/USDC","dex":"aerodrome","chain":"base","fee":0.05,"tvl":2794457,"r":0.995259,"fees":1.9009,"adv":2.528,"days":30},{"id":"0xea4ba4ce","pair":"COMP/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":2693270,"r":1.021342,"fees":0.0254,"adv":0.011,"days":30},{"id":"0xe6d7ebb9","pair":"USDe/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":2670332,"r":1.000131,"fees":0.3102,"adv":0.418,"days":30},{"id":"0x46d398a5","pair":"WETH/VVV","dex":"aerodrome","chain":"base","fee":0.3,"tvl":2636601,"r":1.140564,"fees":0.7238,"adv":2.108,"days":30},{"id":"0x7c706586","pair":"WETH/SPX","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":2563011,"r":1.351245,"fees":0.4742,"adv":0.242,"days":30},{"id":"0xd1d5a4c0","pair":"LQTY/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":2296224,"r":1.077406,"fees":0.3279,"adv":0.091,"days":30},{"id":"0x86f1d839","pair":"WMATIC/WETH","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":2282086,"r":1.046121,"fees":0.253,"adv":0.191,"days":30},{"id":"0x2aceda63","pair":"WETH/AAVE","dex":"uniswap-v3","chain":"polygon","fee":0.3,"tvl":2273443,"r":1.13774,"fees":0.7119,"adv":1.203,"days":30},{"id":"0x4a79b016","pair":"WETH/AAVE","dex":"aerodrome","chain":"base","fee":0.3,"tvl":2239882,"r":1.128539,"fees":3.0582,"adv":6.428,"days":30},{"id":"0x43566400","pair":"USDe/USDT","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":2216981,"r":1.000657,"fees":0.0797,"adv":0.418,"days":30},{"id":"0x840deeef","pair":"cbETH/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":2165378,"r":0.998828,"fees":0.038,"adv":0.011,"days":30},{"id":"0x94ab9e45","pair":"USDC/LINK","dex":"uniswap-v3","chain":"polygon","fee":0.3,"tvl":2093486,"r":1.604067,"fees":0.2954,"adv":2.087,"days":30},{"id":"0x50e7b929","pair":"PENDLE/USDT","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":2078664,"r":0.655861,"fees":1.735,"adv":3.022,"days":30},{"id":"0x0225ba89","pair":"WETH/uSOL","dex":"aerodrome","chain":"base","fee":0.3,"tvl":2067483,"r":1.058665,"fees":3.7662,"adv":4.632,"days":30},{"id":"0x80891885","pair":"USDC/ZCHF","dex":"aerodrome","chain":"base","fee":1,"tvl":2051462,"r":0.999405,"fees":0.3801,"adv":5.026,"days":30},{"id":"0x3e31ab7f","pair":"LINK/WETH","dex":"uniswap-v3","chain":"polygon","fee":0.3,"tvl":2048541,"r":0.818708,"fees":0.4576,"adv":2.485,"days":30},{"id":"0x4e665157","pair":"USD0/USDC","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":1970808,"r":0.999919,"fees":0.0327,"adv":0.013,"days":30},{"id":"0x3f0296bf","pair":"VIRTUAL/WETH","dex":"aerodrome","chain":"base","fee":0.05,"tvl":1959510,"r":1.009869,"fees":2.6743,"adv":8.57,"days":30},{"id":"0xa95b0f5a","pair":"CRV/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":1917430,"r":0.813174,"fees":1.4544,"adv":4.879,"days":30},{"id":"0xa4d8c89f","pair":"USDC/WETH","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":1883294,"r":1.312171,"fees":0.4928,"adv":1.474,"days":30},{"id":"0x57af956d","pair":"PENDLE/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":1831249,"r":0.857682,"fees":0.6654,"adv":1.535,"days":30},{"id":"0x22a52bb6","pair":"WETH/AIXBT","dex":"aerodrome","chain":"base","fee":0.3,"tvl":1828870,"r":0.836514,"fees":0.115,"adv":0.121,"days":30},{"id":"0x3f53f1fd","pair":"ZORA/USDC","dex":"aerodrome","chain":"base","fee":0.05,"tvl":1816444,"r":0.657676,"fees":0.3912,"adv":0.767,"days":30},{"id":"0x59c38b67","pair":"UNI/AAVE","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":1796223,"r":0.850005,"fees":0.5196,"adv":1.18,"days":30},{"id":"0xd13040d4","pair":"RAIN/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.01,"tvl":1791934,"r":0.986825,"fees":0.5865,"adv":0.064,"days":30},{"id":"0x4d69971c","pair":"WETH/USD+","dex":"aerodrome","chain":"base","fee":0.05,"tvl":1781003,"r":0.762052,"fees":0.0198,"adv":0.034,"days":30},{"id":"0xc4ed25e6","pair":"AVNT/USDC","dex":"aerodrome","chain":"base","fee":0.3,"tvl":1604066,"r":0.876671,"fees":1.2045,"adv":2.614,"days":30},{"id":"0x5d4e504e","pair":"WETH/EURC","dex":"aerodrome","chain":"base","fee":0.05,"tvl":1558694,"r":0.764614,"fees":0.0285,"adv":0.07,"days":30},{"id":"0x4cef5512","pair":"ZRO/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":1550747,"r":0.974246,"fees":0.294,"adv":0.615,"days":30},{"id":"0x6c063a6e","pair":"WETH/INJ","dex":"uniswap-v3","chain":"mainnet","fee":0.3,"tvl":1531152,"r":0.990293,"fees":0.1444,"adv":1.383,"days":30},{"id":"0x74f72788","pair":"WETH/msETH","dex":"aerodrome","chain":"base","fee":0.05,"tvl":1456749,"r":0.90188,"fees":0.9571,"adv":6.185,"days":30},{"id":"0xc82819f7","pair":"WETH/USDT","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":1408106,"r":0.765288,"fees":0.382,"adv":0.857,"days":30},{"id":"0x92fd143a","pair":"WETH/ARB","dex":"uniswap-v3","chain":"arbitrum","fee":1,"tvl":1378527,"r":1.70237,"fees":0.3782,"adv":1.283,"days":30},{"id":"0xa4e0faa5","pair":"rETH/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":1362341,"r":0.999333,"fees":0.0603,"adv":0.264,"days":30},{"id":"0xe5cf22ee","pair":"MOR/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":1360517,"r":1.397691,"fees":0.0964,"adv":0.034,"days":30},{"id":"0xd23fe2db","pair":"CLANKER/WETH","dex":"aerodrome","chain":"base","fee":0.3,"tvl":1288045,"r":1.332941,"fees":0.8944,"adv":1.121,"days":30},{"id":"0x6f38e884","pair":"WETH/USDC","dex":"uniswap-v3","chain":"arbitrum","fee":0.01,"tvl":1272084,"r":0.761939,"fees":0.2151,"adv":0.612,"days":30},{"id":"0xdd672b3b","pair":"WETH/AAVE","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":1257830,"r":1.137341,"fees":0.6603,"adv":1.003,"days":30},{"id":"0x35218a1c","pair":"wstETH/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.01,"tvl":1227145,"r":0.998976,"fees":0.1727,"adv":0.028,"days":30},{"id":"0x4ba1e3e9","pair":"WETH/SPX","dex":"aerodrome","chain":"base","fee":0.3,"tvl":1221056,"r":1.351789,"fees":0.3914,"adv":0.478,"days":30},{"id":"0x0f664aff","pair":"WETH/TIBBIR","dex":"aerodrome","chain":"base","fee":0.3,"tvl":1197921,"r":1.653542,"fees":2.8846,"adv":2.133,"days":30},{"id":"0xb099c658","pair":"WETH/B3","dex":"aerodrome","chain":"base","fee":0.05,"tvl":1188880,"r":0.779721,"fees":0.3736,"adv":0.575,"days":30},{"id":"0x6b0f53cb","pair":"USDC/VELVET","dex":"aerodrome","chain":"base","fee":0.01,"tvl":1181867,"r":0.170084,"fees":0.4653,"adv":0.319,"days":30},{"id":"0xa961f047","pair":"WETH/DAI","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":1173318,"r":0.76506,"fees":0.1234,"adv":0.286,"days":30},{"id":"0xbb98b3d2","pair":"WETH/USDT","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":1126507,"r":0.762522,"fees":2.3435,"adv":8.304,"days":30},{"id":"0x565aecf8","pair":"AERO/wstETH","dex":"aerodrome","chain":"base","fee":0.3,"tvl":1110398,"r":1.013873,"fees":0.3442,"adv":2.311,"days":30},{"id":"0xcdd442e2","pair":"BNKR/WETH","dex":"aerodrome","chain":"base","fee":0.3,"tvl":1086079,"r":1.682601,"fees":2.4123,"adv":2.93,"days":30},{"id":"0x7501bc8b","pair":"msUSD/USDC","dex":"aerodrome","chain":"base","fee":0.05,"tvl":1050880,"r":1.104666,"fees":1.0602,"adv":7.833,"days":30},{"id":"0x12a46b5d","pair":"RAIN/USDT","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":1049646,"r":0.753159,"fees":0.3751,"adv":0.257,"days":30},{"id":"0xc24f7d8e","pair":"WETH/UNI","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":1047130,"r":1.330976,"fees":2.2145,"adv":15.868,"days":30},{"id":"0xf81e1a62","pair":"tBTC/USDC","dex":"aerodrome","chain":"base","fee":0.3,"tvl":1045956,"r":0.814277,"fees":0.4043,"adv":1.428,"days":30},{"id":"0x5c45b0f4","pair":"WETH/uSUI","dex":"aerodrome","chain":"base","fee":0.3,"tvl":1030921,"r":0.901032,"fees":0.2324,"adv":0.81,"days":30},{"id":"0x553e9c49","pair":"rETH/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":1026442,"r":1.000013,"fees":0.2425,"adv":0.121,"days":30},{"id":"0xe30d5bf4","pair":"AVNT/USDC","dex":"aerodrome","chain":"base","fee":0.01,"tvl":983745,"r":0.876576,"fees":0.0973,"adv":0.201,"days":30},{"id":"0xbd3cd0d9","pair":"weETH/WETH","dex":"aerodrome","chain":"base","fee":0.01,"tvl":981303,"r":0.998232,"fees":0.0406,"adv":0.004,"days":30},{"id":"0xa33f162d","pair":"tBTC/WETH","dex":"aerodrome","chain":"base","fee":0.3,"tvl":915460,"r":1.063707,"fees":0.3374,"adv":0.771,"days":30},{"id":"0xb6e57ed8","pair":"WMATIC/USDC","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":914477,"r":0.798098,"fees":0.6212,"adv":0.882,"days":30},{"id":"0xafb62448","pair":"WETH/DEGEN","dex":"aerodrome","chain":"base","fee":0.3,"tvl":883681,"r":0.653438,"fees":0.1052,"adv":0.144,"days":30},{"id":"0x0b599ebf","pair":"WBTC/LBTC","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":875733,"r":1.001803,"fees":0.2139,"adv":2.258,"days":30},{"id":"0x74e4c08b","pair":"WETH/TOSHI","dex":"aerodrome","chain":"base","fee":0.3,"tvl":803761,"r":0.95594,"fees":0.8908,"adv":8.702,"days":30},{"id":"0x46d710c3","pair":"WETH/KTA","dex":"aerodrome","chain":"base","fee":0.3,"tvl":784913,"r":0.578607,"fees":0.863,"adv":1.379,"days":30},{"id":"0x97bca422","pair":"ARB/USDT","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":762680,"r":0.447679,"fees":0.4586,"adv":3.565,"days":30},{"id":"0xdbc69982","pair":"WETH/USDC","dex":"aerodrome","chain":"base","fee":0.01,"tvl":722105,"r":0.762389,"fees":0.0548,"adv":0.093,"days":30},{"id":"0x988702fe","pair":"USDC/eUSD","dex":"aerodrome","chain":"base","fee":0.01,"tvl":713271,"r":0.998795,"fees":0.0873,"adv":0.003,"days":30},{"id":"0xe6ff8b9a","pair":"WBTC/WETH","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":711547,"r":1.068112,"fees":1.2248,"adv":1.281,"days":30},{"id":"0xa4fdd479","pair":"USDC/AERO","dex":"aerodrome","chain":"base","fee":0.05,"tvl":688230,"r":1.301669,"fees":1.7728,"adv":4.687,"days":30},{"id":"0xb08a8794","pair":"PENDLE/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":685340,"r":0.859114,"fees":0.2894,"adv":0.498,"days":30},{"id":"0xa4463789","pair":"WETH/ZRO","dex":"aerodrome","chain":"base","fee":0.05,"tvl":653511,"r":1.027332,"fees":0.0521,"adv":0.079,"days":30},{"id":"0xa0e2bac9","pair":"WETH/DRV","dex":"aerodrome","chain":"base","fee":0.3,"tvl":650612,"r":1.250715,"fees":0.7076,"adv":0.665,"days":30},{"id":"0x53c6ca25","pair":"WBTC/USDT","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":634931,"r":0.815131,"fees":0.2321,"adv":0.45,"days":30},{"id":"0x18d96b61","pair":"USDC/UST","dex":"uniswap-v3","chain":"mainnet","fee":0.01,"tvl":626510,"r":0.992356,"fees":0.3983,"adv":0,"days":30},{"id":"0x3a88ef38","pair":"WETH/LCAP","dex":"aerodrome","chain":"base","fee":0.3,"tvl":619466,"r":1.001176,"fees":1.2784,"adv":0.748,"days":30},{"id":"0x32a5746b","pair":"LINK/USDT","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":589467,"r":0.627361,"fees":0.698,"adv":3.36,"days":30},{"id":"0x222ccbe7","pair":"BIO/WETH","dex":"aerodrome","chain":"base","fee":0.05,"tvl":565078,"r":1.221781,"fees":0.9789,"adv":1.014,"days":30},{"id":"0x72be417a","pair":"WETH/LINK","dex":"aerodrome","chain":"base","fee":0.05,"tvl":512586,"r":1.221877,"fees":0.7694,"adv":1.993,"days":30},{"id":"0xc5e51044","pair":"EURC/USDC","dex":"aerodrome","chain":"base","fee":0.01,"tvl":511763,"r":0.995242,"fees":0.9167,"adv":0.967,"days":30},{"id":"0xac70bd92","pair":"WBTC/USDC","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":505744,"r":0.813845,"fees":0.077,"adv":0.353,"days":30},{"id":"0xa9077cdb","pair":"WMATIC/AAVE","dex":"uniswap-v3","chain":"polygon","fee":0.3,"tvl":500093,"r":1.191175,"fees":1.963,"adv":0.584,"days":30},{"id":"0x22aee369","pair":"WETH/cbBTC","dex":"aerodrome","chain":"base","fee":0.01,"tvl":491026,"r":0.937831,"fees":0.6409,"adv":0.976,"days":30},{"id":"0x4fd47e51","pair":"LPT/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":490571,"r":1.148243,"fees":1.5493,"adv":0.707,"days":30},{"id":"0x0da62535","pair":"WBTC/cbBTC","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":483410,"r":1.00108,"fees":0.0177,"adv":0.57,"days":30},{"id":"0x56b92e5b","pair":"WETH/KAITO","dex":"aerodrome","chain":"base","fee":0.05,"tvl":481540,"r":0.347816,"fees":0.2741,"adv":0.785,"days":30},{"id":"0x892a6ab3","pair":"XSGD/USDC","dex":"aerodrome","chain":"base","fee":0.01,"tvl":470373,"r":0.99296,"fees":0.1213,"adv":0.313,"days":30},{"id":"0xe8833415","pair":"WETH/COOKIE","dex":"aerodrome","chain":"base","fee":0.3,"tvl":448816,"r":0.582154,"fees":2.2595,"adv":0.329,"days":30},{"id":"0xbc323103","pair":"USDC/DIEM","dex":"aerodrome","chain":"base","fee":0.05,"tvl":442957,"r":1.245995,"fees":0.8075,"adv":1.559,"days":30},{"id":"0x30ea22c8","pair":"WETH/swETH","dex":"uniswap-v3","chain":"mainnet","fee":0.05,"tvl":435604,"r":1.000604,"fees":0.2153,"adv":0.525,"days":30},{"id":"0x61c6e9e9","pair":"uXRP/WETH","dex":"aerodrome","chain":"base","fee":0.3,"tvl":433114,"r":0.961194,"fees":0.6238,"adv":0.966,"days":30},{"id":"0x3dc10d7b","pair":"LINK/WETH","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":428754,"r":0.81535,"fees":2.7062,"adv":10.166,"days":30},{"id":"0x678f431d","pair":"MAMO/USDC","dex":"aerodrome","chain":"base","fee":0.3,"tvl":424082,"r":1.195019,"fees":4.1529,"adv":0.465,"days":30},{"id":"0xd40bffa9","pair":"BIO/USDC","dex":"aerodrome","chain":"base","fee":0.3,"tvl":418647,"r":0.93521,"fees":1.5339,"adv":2.114,"days":30},{"id":"0x91308bc9","pair":"WETH/LINK","dex":"uniswap-v3","chain":"arbitrum","fee":0.05,"tvl":415337,"r":1.219756,"fees":1.6665,"adv":8.44,"days":30},{"id":"0x088c39ee","pair":"WETH/doginme","dex":"aerodrome","chain":"base","fee":0.3,"tvl":412387,"r":1.167516,"fees":1.8392,"adv":1.314,"days":30},{"id":"0x74d0ae8b","pair":"WETH/GRT","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":407933,"r":1.011308,"fees":0.51,"adv":1.046,"days":30},{"id":"0xb211a9dd","pair":"WETH/KEYCAT","dex":"aerodrome","chain":"base","fee":0.3,"tvl":377225,"r":1.436055,"fees":0.7035,"adv":0.317,"days":30},{"id":"0x3f5e98c7","pair":"TIG/USDC","dex":"aerodrome","chain":"base","fee":0.3,"tvl":368145,"r":1.303543,"fees":0.8794,"adv":4.457,"days":30},{"id":"0xa2da14a5","pair":"USDC/deJAAA","dex":"aerodrome","chain":"base","fee":0.01,"tvl":365715,"r":1.003629,"fees":0.0112,"adv":0,"days":30},{"id":"0x0a28c2f5","pair":"WMATIC/LINK","dex":"uniswap-v3","chain":"polygon","fee":0.05,"tvl":363349,"r":1.284201,"fees":0.7902,"adv":0.846,"days":30},{"id":"0x016df910","pair":"WETH/PENDLE","dex":"aerodrome","chain":"base","fee":0.05,"tvl":358184,"r":1.162949,"fees":0.5255,"adv":1.219,"days":30},{"id":"0xb862f23b","pair":"WETH/cbADA","dex":"aerodrome","chain":"base","fee":0.3,"tvl":351425,"r":0.861392,"fees":10.0343,"adv":22.322,"days":30},{"id":"0x385b47e5","pair":"DRB/WETH","dex":"aerodrome","chain":"base","fee":0.3,"tvl":342921,"r":0.149626,"fees":6.9081,"adv":25.558,"days":30},{"id":"0x80cc0871","pair":"USDC/SAPIEN","dex":"aerodrome","chain":"base","fee":0.05,"tvl":339009,"r":1.005603,"fees":0.1314,"adv":0.755,"days":30},{"id":"0xd7338b6f","pair":"FLOCK/USDC","dex":"aerodrome","chain":"base","fee":0.05,"tvl":338891,"r":0.402671,"fees":3.2681,"adv":1.226,"days":30},{"id":"0xaa067f08","pair":"WETH/MAMO","dex":"aerodrome","chain":"base","fee":0.3,"tvl":322951,"r":0.641501,"fees":5.2828,"adv":0.57,"days":30},{"id":"0x53d3e59f","pair":"WETH/NST","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":321859,"r":0.925157,"fees":0.4187,"adv":0.516,"days":30},{"id":"0x52f9d14b","pair":"LDO/WETH","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":302736,"r":0.918228,"fees":0.3555,"adv":0.712,"days":30},{"id":"0xad06a870","pair":"WETH/WOO","dex":"aerodrome","chain":"base","fee":0.3,"tvl":295969,"r":0.773974,"fees":1.376,"adv":9.667,"days":30},{"id":"0xff862675","pair":"USDC/CARV","dex":"aerodrome","chain":"base","fee":0.05,"tvl":287707,"r":1.153064,"fees":0.0616,"adv":0.24,"days":30},{"id":"0xadb8fb84","pair":"ZORA/WETH","dex":"aerodrome","chain":"base","fee":0.05,"tvl":277476,"r":0.860327,"fees":1.5845,"adv":1.519,"days":30},{"id":"0x20068142","pair":"WETH/cbLTC","dex":"aerodrome","chain":"base","fee":0.3,"tvl":276190,"r":0.916197,"fees":2.3758,"adv":13.071,"days":30},{"id":"0x93617b29","pair":"oUSDT/WETH","dex":"aerodrome","chain":"base","fee":0.05,"tvl":267654,"r":1.311308,"fees":1.1482,"adv":2.427,"days":30},{"id":"0x6cca90e7","pair":"WETH/RSC","dex":"aerodrome","chain":"base","fee":0.3,"tvl":265937,"r":0.676952,"fees":1.6845,"adv":0.399,"days":30},{"id":"0x5cbddc44","pair":"WETH/ATH","dex":"uniswap-v3","chain":"arbitrum","fee":0.3,"tvl":262114,"r":0.893589,"fees":1.2635,"adv":1.969,"days":30},{"id":"0x681d6e4b","pair":"SEDA/WETH","dex":"aerodrome","chain":"base","fee":0.3,"tvl":258146,"r":1.267361,"fees":0.5052,"adv":2.363,"days":30},{"id":"0x357faf58","pair":"WETH/UNI","dex":"uniswap-v3","chain":"polygon","fee":0.3,"tvl":252560,"r":1.336793,"fees":2.3058,"adv":3.98,"days":30},{"id":"0x28a9ec99","pair":"WETH/FAI","dex":"aerodrome","chain":"base","fee":0.3,"tvl":250837,"r":0.709783,"fees":0.7114,"adv":0.812,"days":30}];
+const RANGES = [{"w":1.05,"label":"Very tight","hint":"±5% band — active rebalancing"},{"w":1.25,"label":"Tight","hint":"±25% band"},{"w":2,"label":"Typical","hint":"±2× band — a common managed position"},{"w":4,"label":"Wide","hint":"±4× band"},{"w":10,"label":"Very wide","hint":"±10× band"},{"w":100000000,"label":"Full range","hint":"no band — the most generous case for the pool"}];
+
+function il(r, w){
+  if(!(w>1)) return null;
+  if(r===0) return -100;
+  const sa=Math.sqrt(1/w), sb=Math.sqrt(w);
+  let pos;
+  if(r<=1/w) pos=(1/sa-1/sb)*r;
+  else if(r>=w) pos=sb-sa;
+  else pos=2*Math.sqrt(r)-sa-r/sb;
+  const hodl=(1-sa)+(1-1/sb)*r;
+  return (pos/hodl-1)*100;
+}
+const oor=(r,w)=>r<=1/w||r>=w;
+const f=(v,d)=>v===null||v===undefined?'—':(v>=0?'+':'')+v.toFixed(d===undefined?1:d)+'%';
+const compute=(p,w)=>{const l=il(p.r,w), rz=p.fees+l, apr=(rz/p.days)*365; return {il:l, realApr:apr, out:oor(p.r,w), mis:p.adv>0&&apr<0};};
+
+// ---------- search + autocomplete ----------
+const qEl=document.getElementById('q'), ddEl=document.getElementById('dd'), clrEl=document.getElementById('clr');
+let hiIdx=-1, current=[];
+
+function search(term){
+  const t=term.trim().toUpperCase();
+  if(!t) return [];
+  const starts=[], contains=[];
+  for(const p of DATA){
+    const up=p.pair.toUpperCase();
+    if(up.split('/').some(s=>s.startsWith(t))) starts.push(p);
+    else if(up.includes(t)) contains.push(p);
+  }
+  return [...starts, ...contains].slice(0,8);
+}
+
+function renderDD(term){
+  current=search(term);
+  hiIdx=-1;
+  if(!current.length){
+    ddEl.innerHTML = term.trim() ? '<div class="nomatch">No pool matches "'+term.replace(/</g,'')+'"</div>' : '';
+    ddEl.classList.toggle('open', !!term.trim());
+    return;
+  }
+  ddEl.innerHTML = current.map((p,i)=>`<div class="opt" data-i="${i}">
+    <div><div class="p">${p.pair}</div><div class="venue">${p.dex} · ${p.chain} · ${p.fee}% fee</div></div>
+    <div class="meta">$${(p.tvl/1e6).toFixed(1)}M TVL<br>${f(p.adv)} advertised</div></div>`).join('');
+  ddEl.classList.add('open');
+}
+
+qEl.addEventListener('input', ()=>{ clrEl.style.display = qEl.value ? 'block' : 'none'; renderDD(qEl.value); });
+qEl.addEventListener('focus', ()=>{ if(qEl.value.trim()) renderDD(qEl.value); });
+qEl.addEventListener('keydown', (e)=>{
+  if(!ddEl.classList.contains('open') || !current.length) return;
+  if(e.key==='ArrowDown'){ e.preventDefault(); hiIdx=Math.min(hiIdx+1,current.length-1); paintHi(); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); hiIdx=Math.max(hiIdx-1,0); paintHi(); }
+  else if(e.key==='Enter'){ e.preventDefault(); if(hiIdx>=0) pick(current[hiIdx]); else if(current.length===1) pick(current[0]); }
+  else if(e.key==='Escape'){ closeDD(); }
+});
+function paintHi(){ [...ddEl.children].forEach((el,i)=>el.classList.toggle('hi', i===hiIdx)); current[hiIdx] && current[hiIdx] && ddEl.children[hiIdx]?.scrollIntoView({block:'nearest'}); }
+ddEl.addEventListener('click', (e)=>{ const opt=e.target.closest('.opt'); if(opt) pick(current[+opt.dataset.i]); });
+clrEl.addEventListener('click', ()=>{ qEl.value=''; clrEl.style.display='none'; closeDD(); showCard(null); qEl.focus(); });
+document.addEventListener('click', (e)=>{ if(!e.target.closest('.searchwrap')) closeDD(); });
+function closeDD(){ ddEl.classList.remove('open'); }
+
+let selected=null, rangeIdx=2; // default: "Typical" ±2x
+
+function pick(p){
+  selected=p; qEl.value=p.pair; clrEl.style.display='block'; closeDD(); showCard(p);
+  document.getElementById('card').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function showCard(p){
+  const card=document.getElementById('card');
+  if(!p){ card.style.display='none'; card.innerHTML=''; return; }
+  card.style.display='block';
+  card.innerHTML = `<div class="hero">
+    <div class="hero-top">
+      <div><div class="hero-pair">${p.pair}</div><div class="hero-tags">${p.dex} · ${p.chain} · ${p.fee}% fee tier · $${(p.tvl/1e6).toFixed(1)}M TVL</div></div>
+      <button class="backbtn" id="back">← all pools</button>
+    </div>
+    <div class="rangepick" id="rp"></div>
+    <div class="rangecap" id="rc"></div>
+    <div class="verdict" id="vd"></div>
+    <div id="cal"></div>
+  </div>`;
+  document.getElementById('back').onclick=()=>{ qEl.value=''; clrEl.style.display='none'; showCard(null); selected=null; };
+  document.getElementById('rp').innerHTML = RANGES.map((r,i)=>`<button class="rbtn" data-i="${i}">${r.label}<small>${r.hint.split(' — ')[0]}</small></button>`).join('');
+  document.querySelectorAll('.rbtn').forEach(b=>b.onclick=()=>{ rangeIdx=+b.dataset.i; paintCard(); });
+  paintCard();
+}
+
+function paintCard(){
+  if(!selected) return;
+  document.querySelectorAll('.rbtn').forEach((b,i)=>b.classList.toggle('sel', i===rangeIdx));
+  const r=RANGES[rangeIdx];
+  document.getElementById('rc').textContent = r.hint;
+  const c=compute(selected, r.w);
+  document.getElementById('vd').innerHTML = `
+    <div><b>${f(selected.adv)}</b><span>advertised APR</span></div>
+    <div><b class="${c.realApr<0?'bad':'ok'}">${f(c.realApr)}</b><span>what an LP in this range actually made</span></div>
+    <div><b>${f(c.il,2)}</b><span>impermanent loss over the window</span></div>`;
+  const cal=document.getElementById('cal');
+  if(c.out){
+    cal.innerHTML = '<div class="callout warn"><b>Price left this band during the window.</b> You would have been fully converted into the losing asset — the loss is realized, not impermanent, and staying in range would need active rebalancing.</div>';
+  } else if(c.mis){
+    cal.innerHTML = '<div class="callout warn"><b>Misleading:</b> this pool advertised a positive APR while an LP at this range actually lost money over the last '+selected.days+' days.</div>';
+  } else if(c.realApr>=0){
+    cal.innerHTML = '<div class="callout fine">Consistent with what was advertised — this pool did not exhibit the defect at this range, this window.</div>';
+  } else {
+    cal.innerHTML = '';
+  }
+}
+
+// ---------- browse table ----------
+let sortKey='tvl', sortDir=-1;
+function renderTable(){
+  const rows = DATA.map(p=>({...p, ...compute(p, 2)})); // table always shows "typical" ±2x for comparability
+  rows.sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; return (typeof x==='string')?sortDir*x.localeCompare(y):sortDir*(x-y);});
+  document.getElementById('tb').innerHTML = rows.slice(0,100).map(p=>`<tr data-pair="${p.pair}" data-id="${p.id}">
+    <td>${p.pair}<div style="color:#5a6572;font-size:11px;font-weight:400">${p.dex} · ${p.chain}</div></td>
+    <td>$${(p.tvl/1e6).toFixed(1)}M</td>
+    <td>${f(p.adv)}</td>
+    <td class="hide-s ${p.realApr<0?'bad':'ok'}">${f(p.realApr)}</td></tr>`).join('');
+  document.querySelectorAll('#tb tr').forEach(tr=>{
+    tr.onclick=()=>{ const match=DATA.find(p=>p.id===tr.dataset.id); if(match) pick(match); };
+  });
+  document.querySelectorAll('th').forEach(t=>t.classList.toggle('on', t.dataset.k===sortKey));
+}
+document.querySelectorAll('th').forEach(t=>t.onclick=()=>{
+  const k=t.dataset.k; if(k===sortKey) sortDir*=-1; else {sortKey=k; sortDir=k==='pair'?1:-1;} renderTable();
+});
+renderTable();
+</script>
+</body></html>

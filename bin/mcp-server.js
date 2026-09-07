@@ -13,12 +13,28 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import {
   gatewayUrl, fetchPool, fetchTopPools, scorePool, summarize, sensitivity, DEFAULT_LIVENESS,
 } from '../lib/realized.js';
-import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
+import { concentratedIlPct, outOfRange, RANGES } from '../lib/concentrated.js';
 
 const API_KEY = process.env.GRAPH_API_KEY;
 const URL = () => gatewayUrl(API_KEY);
 
 const TOOLS = [
+  {
+    name: 'find_pool',
+    description:
+      'Look up a pool by token symbols (e.g. "WETH/USDC" or just "WETH") instead of a raw 0x '
+      + 'address. Returns candidate pools ranked by TVL with their poolId, ready to pass into '
+      + 'realized_return or explain_gap. Use this FIRST -- you should never need to already know '
+      + 'a pool address to use this server.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Token symbol or pair, case-insensitive, e.g. "WETH/USDC" or "PEPE"' },
+        limit: { type: 'number', description: 'Max candidates to return (default 5)', default: 5 },
+      },
+      required: ['query'],
+    },
+  },
   {
     name: 'realized_return',
     description:
@@ -74,6 +90,33 @@ const GATES = [
 ];
 
 const ok = (obj) => ({ content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] });
+
+async function findPool({ query: q, limit = 5 }) {
+  if (!q || !q.trim()) return { error: 'query is required, e.g. "WETH/USDC" or "PEPE"' };
+  const terms = q.toUpperCase().split(/[/\s-]+/).filter(Boolean);
+  // Reuse the same top-pools fetch the audit uses -- one code path, no second query shape
+  // to drift out of sync with what audit_pools/the app actually see.
+  const pools = await fetchTopPools(URL(), { first: 500, minTvlUsd: 10_000 });
+  const matches = pools
+    .map((p) => ({ p, sym0: (p.token0?.symbol || '').toUpperCase(), sym1: (p.token1?.symbol || '').toUpperCase() }))
+    .filter(({ sym0, sym1 }) => terms.every((t) => sym0.includes(t) || sym1.includes(t)))
+    .sort((a, b) => Number(b.p.totalValueLockedUSD) - Number(a.p.totalValueLockedUSD))
+    .slice(0, limit)
+    .map(({ p, sym0, sym1 }) => ({
+      poolId: p.id,
+      pair: `${sym0}/${sym1}`,
+      feeTierPct: Number(p.feeTier) / 10_000,
+      tvlUsd: Math.round(Number(p.totalValueLockedUSD)),
+    }));
+  if (!matches.length) {
+    return { query: q, matches: [], note: 'no pool found among the top 500 mainnet pools by TVL for that query' };
+  }
+  return {
+    query: q,
+    matches,
+    note: 'pass any matches[].poolId into realized_return or explain_gap',
+  };
+}
 
 async function realizedReturn({ poolId, days = 30, rangeWidthX }) {
   const pool = await fetchPool(URL(), poolId, days);
@@ -141,6 +184,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }))
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: args = {} } = req.params;
   try {
+    if (name === 'find_pool') return ok(await findPool(args));
     if (name === 'realized_return') return ok(await realizedReturn(args));
     if (name === 'audit_pools') return ok(await auditPools(args));
     if (name === 'explain_gap') return ok(await explainGap(args));

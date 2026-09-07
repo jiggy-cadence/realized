@@ -1,0 +1,374 @@
+#!/usr/bin/env node
+/**
+ * build-app.js — render index.html AND api/pools.json (agent-usable endpoint).
+ *
+ * TWO consumers, one dataset:
+ *   1. Humans: search box with live autocomplete, plain-language range picker (no "±2x" jargon
+ *      up front -- that language is still there, just as a secondary caption).
+ *   2. Agents: a stable, documented, CORS-open JSON endpoint at /api/pools.json plus the MCP
+ *      server (bin/mcp-server.js, tools: find_pool, realized_return, audit_pools, explain_gap).
+ *      An agent should never have to scrape the HTML to get this data.
+ *
+ * DESIGN RULE, unchanged from before: this script performs no measurement. It embeds
+ * data/pools.json and the client recomputes impermanent loss from (priceRatio, rangeWidth)
+ * using the identical closed form as lib/concentrated.js (checked byte-for-byte in
+ * test/canary.test.js). No API key in client code, no backend, no rate limit.
+ *
+ * Run: node scripts/build-app.js
+ */
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const R = (p) => JSON.parse(readFileSync(`${__dirname}/../${p}`, 'utf8'));
+
+const pools = R('data/pools.json');
+const hist = R('data/history.json');
+
+const chainsValidated = Object.values(hist.stability).filter((s) => s?.tight).length;
+const totalMonths = Object.values(hist.stability).reduce((a, s) => a + (s?.tight?.windows || 0), 0);
+const venueList = [...new Set(pools.pools.map((p) => `${p.dex}/${p.chain}`))];
+const excludedVenues = Object.entries(pools.canaryByVenue).filter(([, c]) => !c.passed).map(([v]) => v);
+
+// ---- 1. agent-usable JSON endpoint --------------------------------------------------------
+// Same payload the page embeds, plus a machine-readable README so an agent that fetches this
+// URL cold (no docs, no MCP) still knows what the fields mean and how to compute realized
+// return itself. This is the "useful for agents" half of the ask.
+const apiPayload = {
+  ...pools,
+  schema: {
+    pair: 'token0/token1 symbols',
+    dex: 'uniswap-v3 | aerodrome',
+    chain: 'mainnet | arbitrum | polygon | base',
+    fee: 'pool fee tier, percent',
+    tvl: 'current total value locked, USD',
+    r: 'price ratio over the window (exit price / entry price)',
+    fees: 'fee income over the window, percent of entry TVL',
+    adv: 'advertised APR percent -- what the DEX UI shows: most recent day fees, annualized. Has no price term, cannot be negative.',
+    days: 'window length in days',
+  },
+  howToComputeRealizedReturn:
+    'realizedReturnPct = fees + impermanentLossPct(r, rangeWidthX). '
+    + 'IL closed form: let sa=sqrt(1/w), sb=sqrt(w); if r<=1/w: pos=(1/sa-1/sb)*r; '
+    + 'elif r>=w: pos=sb-sa; else: pos=2*sqrt(r)-sa-r/sb; hodl=(1-sa)+(1-1/sb)*r; '
+    + 'IL=(pos/hodl-1)*100. w=1e8 approximates full-range. realizedAprPct = realizedReturnPct/days*365.',
+  mcpServer: 'bin/mcp-server.js -- tools: find_pool, realized_return, audit_pools, explain_gap. '
+    + 'find_pool(query) resolves a symbol like "WETH/USDC" to a poolId; no address needed.',
+  moreEndpoints: { report: '/realized.html', app: '/realized-app.html', repo: 'https://github.com/jiggy-cadence/realized' },
+};
+mkdirSync(`${__dirname}/../api`, { recursive: true });
+writeFileSync(`${__dirname}/../api/pools.json`, JSON.stringify(apiPayload));
+
+// ---- 2. human page --------------------------------------------------------------------------
+const RANGES = [
+  { w: 1.05, label: 'Very tight', hint: '±5% band — active rebalancing' },
+  { w: 1.25, label: 'Tight', hint: '±25% band' },
+  { w: 2, label: 'Typical', hint: '±2× band — a common managed position' },
+  { w: 4, label: 'Wide', hint: '±4× band' },
+  { w: 10, label: 'Very wide', hint: '±10× band' },
+  { w: 1e8, label: 'Full range', hint: 'no band — the most generous case for the pool' },
+];
+
+const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>REALIZED — what did you actually make as an LP?</title>
+<meta name="description" content="Advertised LP APR has no price term, so it cannot show a loss. Search any Uniswap v3 or Aerodrome pool and see what liquidity providers actually took home.">
+<link rel="alternate" type="application/json" href="api/pools.json" title="Raw data (agent-usable)">
+<style>
+:root{--bg:#0b0f14;--fg:#e6edf3;--dim:#7d8590;--acc:#e07a5f;--good:#3fb950;--line:#1c2229;--card:#111820}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:900px;margin:0 auto;padding:40px 20px 80px}
+header{margin-bottom:22px}
+.brand{font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:12px}
+.brand a{color:var(--dim);text-decoration:none;font-weight:600;letter-spacing:.04em;text-transform:none;font-size:11.5px;border:1px solid var(--line);border-radius:5px;padding:3px 8px}
+.brand a:hover{color:var(--fg);border-color:#333}
+h1{font-size:32px;line-height:1.18;letter-spacing:-.025em;margin:0 0 10px;max-width:20ch}
+h1 em{color:var(--acc);font-style:normal}
+.sub{color:var(--dim);max-width:64ch;margin:0;font-size:15px}
+
+/* --- search-first: this is the primary control, not the range slider --- */
+.searchwrap{position:relative;margin:28px 0 0}
+.searchbox{display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:4px 4px 4px 16px;transition:border-color .15s}
+.searchbox:focus-within{border-color:var(--acc)}
+.searchbox svg{flex:none;opacity:.5}
+#q{flex:1;background:none;border:0;outline:0;color:var(--fg);font-size:17px;padding:13px 4px;font-family:inherit}
+#q::placeholder{color:#4b5560}
+.clr{background:#1a212a;border:0;color:var(--dim);width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:15px;margin-right:6px;display:none}
+.clr:hover{color:var(--fg)}
+.dropdown{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#131a22;border:1px solid var(--line);border-radius:11px;box-shadow:0 16px 40px rgba(0,0,0,.5);z-index:20;max-height:340px;overflow-y:auto;display:none}
+.dropdown.open{display:block}
+.opt{padding:11px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #1a212a}
+.opt:last-child{border-bottom:0}
+.opt:hover,.opt.hi{background:#1a212a}
+.opt .p{font-weight:600}
+.opt .meta{color:var(--dim);font-size:12px;text-align:right}
+.opt .venue{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:#5a6572;margin-top:2px}
+.nomatch{padding:16px;color:var(--dim);font-size:13.5px;text-align:center}
+
+/* --- card shown once a pool is picked --- */
+#card{display:none;margin-top:22px}
+.hero{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 26px 22px}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.hero-pair{font-size:24px;font-weight:700;letter-spacing:-.01em}
+.hero-tags{color:var(--dim);font-size:13px;margin-top:3px}
+.backbtn{background:none;border:1px solid var(--line);color:var(--dim);border-radius:7px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+.backbtn:hover{color:var(--fg);border-color:#333}
+
+.rangepick{display:flex;gap:7px;flex-wrap:wrap;margin:22px 0 4px}
+.rbtn{background:#0e141b;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:9px 14px;font-size:13.5px;cursor:pointer;font-family:inherit;font-weight:600;text-align:left}
+.rbtn:hover{border-color:#3a4048;color:var(--fg)}
+.rbtn.sel{border-color:var(--acc);background:rgba(224,122,95,.1);color:var(--fg)}
+.rbtn small{display:block;font-weight:400;color:var(--dim);font-size:11px;margin-top:2px}
+.rangecap{color:var(--dim);font-size:12.5px;margin:8px 0 0}
+
+.verdict{display:flex;gap:28px;flex-wrap:wrap;margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
+.verdict div b{display:block;font-size:29px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.15}
+.verdict div span{font-size:12px;color:var(--dim)}
+.bad{color:var(--acc)}.ok{color:var(--good)}
+.callout{margin-top:18px;padding:13px 16px;border-radius:9px;font-size:13.5px;line-height:1.5}
+.callout.warn{background:rgba(224,122,95,.1);border:1px solid rgba(224,122,95,.28);color:#f0b8a8}
+.callout.fine{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.22);color:#a8dfb0}
+
+/* --- top pools browse table (secondary, below the fold) --- */
+h2{font-size:15px;margin:44px 0 4px;color:var(--dim);font-weight:600;letter-spacing:.02em}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px}
+th{text-align:right;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600;padding:0 10px 9px 0;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer}
+th:first-child,td:first-child{text-align:left}
+th:hover{color:var(--fg)}
+td{padding:10px 10px 10px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;cursor:pointer}
+td:first-child{cursor:pointer}
+tbody tr:hover{background:#0f151c}
+.hide-s{display:table-cell}
+@media(max-width:680px){.hide-s{display:none}}
+
+details{margin-top:44px;border-top:1px solid var(--line);padding-top:16px}
+summary{cursor:pointer;color:var(--dim);font-size:13px}
+summary:hover{color:var(--fg)}
+details h3{font-size:14.5px;margin:22px 0 6px}
+details p,details li{color:#a9b4bf;font-size:13.5px;max-width:74ch}
+code{background:#1a212a;padding:2px 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.foot{margin-top:30px;color:var(--dim);font-size:12px}
+a{color:var(--acc)}
+</style></head><body><div class="wrap">
+
+<header>
+  <div class="brand">Realized <a href="api/pools.json">API for agents ↗</a></div>
+  <h1>Your yield dashboard <em>can't</em> tell you that you lost money.</h1>
+  <p class="sub">DEX-advertised APR is fee income annualized — it has no price term, so it's positive
+  no matter what actually happened to your money. Search a pool and see what LPs really took home.</p>
+</header>
+
+<div class="searchwrap">
+  <div class="searchbox">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="q" type="text" placeholder="Search a pool — try WETH, USDC, PEPE…" autocomplete="off">
+    <button class="clr" id="clr">✕</button>
+  </div>
+  <div class="dropdown" id="dd"></div>
+</div>
+
+<div id="card"></div>
+
+<h2>Or browse the ${pools.pools.length} pools we track</h2>
+<table id="tbl"><thead><tr>
+  <th data-k="pair">Pool</th>
+  <th data-k="tvl">TVL</th>
+  <th data-k="adv">Advertised</th>
+  <th data-k="realApr" class="hide-s">Typical-range reality</th>
+</tr></thead><tbody id="tb"></tbody></table>
+
+<details>
+<summary>Method, limits, and everything we got wrong on the way here</summary>
+
+<h3>What is being computed</h3>
+<p>Realized return = fee income <b>+ impermanent loss</b> (IL is always ≤ 0). Advertised APR is the most
+recent day's fees annualized on current TVL — the standard DEX-UI formula. Both come from The Graph's
+historical <code>poolDayData</code>: per-day fee totals in USD are <b>derived aggregates produced by the
+indexer</b> and do not exist on-chain, so there is no RPC path to this dataset.</p>
+<p>IL is recomputed in your browser from the pool's price ratio and the range you pick, using the same
+closed form as <code>lib/concentrated.js</code>, which the test suite pins against the standard v2 formula
+at four range widths. Nothing is precomputed per range.</p>
+
+<h3>Why the range matters</h3>
+<p>Uniswap v3 LPs <b>concentrate</b> into a price band. Inside a band IL is amplified; once price leaves
+the band you're fully converted into the losing asset and the loss is no longer impermanent. Full-range
+is the <b>most generous possible case for the pool</b>, which is why it's the last option, not the default.</p>
+<p>The fee term is held constant across ranges, which is deliberately unfair to us: concentrating earns
+more fees too, so some IL is earned back. We can't measure per-position fees from pool-level data, so we
+didn't model the uplift. The <b>direction</b> is what survives; treat magnitudes as bounded by that.</p>
+
+<h3>How well does it hold up</h3>
+<p>${totalMonths} independent (non-overlapping) 30-day windows across ${chainsValidated} chains, plus the
+same instrument run unchanged on <b>Aerodrome Slipstream</b> — a different team, codebase and incentive
+model — showing the same defect, same shape. Full tables: <a href="realized.html">the measurement report</a>.</p>
+
+<h3>Things that are true and inconvenient</h3>
+<ul>
+<li><b>An earlier headline of <code>corr = 0.06</code> is retracted.</b> It existed in no committed code and
+does not reproduce. Recomputed honestly it spans Pearson 0.08–0.16 / Spearman 0.30–0.33 depending on gate,
+trimming and estimator — that spread <i>is</i> the finding.</li>
+<li><b>We shipped the Uniswap v2 formula on a v3 venue</b> before 2026-09-07, silently reporting the best
+case for every pool. Fixed; the old number survives as the "full range" option so the change stays auditable.</li>
+<li><b>Venues we couldn't validate are excluded, not called clean.</b> A venue only appears if its
+stable/stable pairs prove ~0 IL in the same run.${excludedVenues.length ? ` ${excludedVenues.join(', ')} did not clear that bar this run and is absent above.` : ''}
+SushiSwap v3, PancakeSwap v3, QuickSwap v3 and Camelot v3 are reported as unmeasurable, not as clean.</li>
+<li><b>Survivorship bias, and it points against us.</b> Pools are ranked by <i>current</i> volume, so pools
+that died are absent — making the past look better than it was.</li>
+<li><b>"LPs lose to HODL" is not our discovery</b> (Topaze Blue / Bancor, 2021). Our contribution is
+calibrating the <i>advertised metric</i> against it, live, per pool.</li>
+</ul>
+
+<h3>For agents</h3>
+<p>Raw JSON: <code>GET /api/pools.json</code> — documented schema + the IL formula inline, no key required,
+CORS-open. MCP server: <code>bin/mcp-server.js</code> exposes <code>find_pool(query)</code> (resolve
+"WETH/USDC" → poolId, no address needed), <code>realized_return</code>, <code>audit_pools</code>,
+<code>explain_gap</code>. Source: <a href="https://github.com/jiggy-cadence/realized">github.com/jiggy-cadence/realized</a>.</p>
+</details>
+
+<div class="foot">
+${pools.pools.length} live pools · ${venueList.length} validated venues · ${pools.windowDays}-day window ·
+data ${pools.generatedAt.slice(0, 16).replace('T', ' ')} UTC · source: The Graph decentralized network.
+</div>
+</div>
+
+<script>
+const DATA = ${JSON.stringify(pools.pools)};
+const RANGES = ${JSON.stringify(RANGES)};
+
+function il(r, w){
+  if(!(w>1)) return null;
+  if(r===0) return -100;
+  const sa=Math.sqrt(1/w), sb=Math.sqrt(w);
+  let pos;
+  if(r<=1/w) pos=(1/sa-1/sb)*r;
+  else if(r>=w) pos=sb-sa;
+  else pos=2*Math.sqrt(r)-sa-r/sb;
+  const hodl=(1-sa)+(1-1/sb)*r;
+  return (pos/hodl-1)*100;
+}
+const oor=(r,w)=>r<=1/w||r>=w;
+const f=(v,d)=>v===null||v===undefined?'—':(v>=0?'+':'')+v.toFixed(d===undefined?1:d)+'%';
+const compute=(p,w)=>{const l=il(p.r,w), rz=p.fees+l, apr=(rz/p.days)*365; return {il:l, realApr:apr, out:oor(p.r,w), mis:p.adv>0&&apr<0};};
+
+// ---------- search + autocomplete ----------
+const qEl=document.getElementById('q'), ddEl=document.getElementById('dd'), clrEl=document.getElementById('clr');
+let hiIdx=-1, current=[];
+
+function search(term){
+  const t=term.trim().toUpperCase();
+  if(!t) return [];
+  const starts=[], contains=[];
+  for(const p of DATA){
+    const up=p.pair.toUpperCase();
+    if(up.split('/').some(s=>s.startsWith(t))) starts.push(p);
+    else if(up.includes(t)) contains.push(p);
+  }
+  return [...starts, ...contains].slice(0,8);
+}
+
+function renderDD(term){
+  current=search(term);
+  hiIdx=-1;
+  if(!current.length){
+    ddEl.innerHTML = term.trim() ? '<div class="nomatch">No pool matches "'+term.replace(/</g,'')+'"</div>' : '';
+    ddEl.classList.toggle('open', !!term.trim());
+    return;
+  }
+  ddEl.innerHTML = current.map((p,i)=>\`<div class="opt" data-i="\${i}">
+    <div><div class="p">\${p.pair}</div><div class="venue">\${p.dex} · \${p.chain} · \${p.fee}% fee</div></div>
+    <div class="meta">$\${(p.tvl/1e6).toFixed(1)}M TVL<br>\${f(p.adv)} advertised</div></div>\`).join('');
+  ddEl.classList.add('open');
+}
+
+qEl.addEventListener('input', ()=>{ clrEl.style.display = qEl.value ? 'block' : 'none'; renderDD(qEl.value); });
+qEl.addEventListener('focus', ()=>{ if(qEl.value.trim()) renderDD(qEl.value); });
+qEl.addEventListener('keydown', (e)=>{
+  if(!ddEl.classList.contains('open') || !current.length) return;
+  if(e.key==='ArrowDown'){ e.preventDefault(); hiIdx=Math.min(hiIdx+1,current.length-1); paintHi(); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); hiIdx=Math.max(hiIdx-1,0); paintHi(); }
+  else if(e.key==='Enter'){ e.preventDefault(); if(hiIdx>=0) pick(current[hiIdx]); else if(current.length===1) pick(current[0]); }
+  else if(e.key==='Escape'){ closeDD(); }
+});
+function paintHi(){ [...ddEl.children].forEach((el,i)=>el.classList.toggle('hi', i===hiIdx)); current[hiIdx] && current[hiIdx] && ddEl.children[hiIdx]?.scrollIntoView({block:'nearest'}); }
+ddEl.addEventListener('click', (e)=>{ const opt=e.target.closest('.opt'); if(opt) pick(current[+opt.dataset.i]); });
+clrEl.addEventListener('click', ()=>{ qEl.value=''; clrEl.style.display='none'; closeDD(); showCard(null); qEl.focus(); });
+document.addEventListener('click', (e)=>{ if(!e.target.closest('.searchwrap')) closeDD(); });
+function closeDD(){ ddEl.classList.remove('open'); }
+
+let selected=null, rangeIdx=2; // default: "Typical" ±2x
+
+function pick(p){
+  selected=p; qEl.value=p.pair; clrEl.style.display='block'; closeDD(); showCard(p);
+  document.getElementById('card').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function showCard(p){
+  const card=document.getElementById('card');
+  if(!p){ card.style.display='none'; card.innerHTML=''; return; }
+  card.style.display='block';
+  card.innerHTML = \`<div class="hero">
+    <div class="hero-top">
+      <div><div class="hero-pair">\${p.pair}</div><div class="hero-tags">\${p.dex} · \${p.chain} · \${p.fee}% fee tier · $\${(p.tvl/1e6).toFixed(1)}M TVL</div></div>
+      <button class="backbtn" id="back">← all pools</button>
+    </div>
+    <div class="rangepick" id="rp"></div>
+    <div class="rangecap" id="rc"></div>
+    <div class="verdict" id="vd"></div>
+    <div id="cal"></div>
+  </div>\`;
+  document.getElementById('back').onclick=()=>{ qEl.value=''; clrEl.style.display='none'; showCard(null); selected=null; };
+  document.getElementById('rp').innerHTML = RANGES.map((r,i)=>\`<button class="rbtn" data-i="\${i}">\${r.label}<small>\${r.hint.split(' — ')[0]}</small></button>\`).join('');
+  document.querySelectorAll('.rbtn').forEach(b=>b.onclick=()=>{ rangeIdx=+b.dataset.i; paintCard(); });
+  paintCard();
+}
+
+function paintCard(){
+  if(!selected) return;
+  document.querySelectorAll('.rbtn').forEach((b,i)=>b.classList.toggle('sel', i===rangeIdx));
+  const r=RANGES[rangeIdx];
+  document.getElementById('rc').textContent = r.hint;
+  const c=compute(selected, r.w);
+  document.getElementById('vd').innerHTML = \`
+    <div><b>\${f(selected.adv)}</b><span>advertised APR</span></div>
+    <div><b class="\${c.realApr<0?'bad':'ok'}">\${f(c.realApr)}</b><span>what an LP in this range actually made</span></div>
+    <div><b>\${f(c.il,2)}</b><span>impermanent loss over the window</span></div>\`;
+  const cal=document.getElementById('cal');
+  if(c.out){
+    cal.innerHTML = '<div class="callout warn"><b>Price left this band during the window.</b> You would have been fully converted into the losing asset — the loss is realized, not impermanent, and staying in range would need active rebalancing.</div>';
+  } else if(c.mis){
+    cal.innerHTML = '<div class="callout warn"><b>Misleading:</b> this pool advertised a positive APR while an LP at this range actually lost money over the last '+selected.days+' days.</div>';
+  } else if(c.realApr>=0){
+    cal.innerHTML = '<div class="callout fine">Consistent with what was advertised — this pool did not exhibit the defect at this range, this window.</div>';
+  } else {
+    cal.innerHTML = '';
+  }
+}
+
+// ---------- browse table ----------
+let sortKey='tvl', sortDir=-1;
+function renderTable(){
+  const rows = DATA.map(p=>({...p, ...compute(p, 2)})); // table always shows "typical" ±2x for comparability
+  rows.sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; return (typeof x==='string')?sortDir*x.localeCompare(y):sortDir*(x-y);});
+  document.getElementById('tb').innerHTML = rows.slice(0,100).map(p=>\`<tr data-pair="\${p.pair}" data-id="\${p.id}">
+    <td>\${p.pair}<div style="color:#5a6572;font-size:11px;font-weight:400">\${p.dex} · \${p.chain}</div></td>
+    <td>$\${(p.tvl/1e6).toFixed(1)}M</td>
+    <td>\${f(p.adv)}</td>
+    <td class="hide-s \${p.realApr<0?'bad':'ok'}">\${f(p.realApr)}</td></tr>\`).join('');
+  document.querySelectorAll('#tb tr').forEach(tr=>{
+    tr.onclick=()=>{ const match=DATA.find(p=>p.id===tr.dataset.id); if(match) pick(match); };
+  });
+  document.querySelectorAll('th').forEach(t=>t.classList.toggle('on', t.dataset.k===sortKey));
+}
+document.querySelectorAll('th').forEach(t=>t.onclick=()=>{
+  const k=t.dataset.k; if(k===sortKey) sortDir*=-1; else {sortKey=k; sortDir=k==='pair'?1:-1;} renderTable();
+});
+renderTable();
+</script>
+</body></html>`;
+
+writeFileSync(`${__dirname}/../index.html`, html);
+console.log(`wrote index.html (${(html.length / 1024).toFixed(1)} KB) + api/pools.json (${(JSON.stringify(apiPayload).length / 1024).toFixed(1)} KB)`);
+console.log(`  ${pools.pools.length} pools, ${venueList.length} validated venues: ${venueList.join(', ')}`);
+console.log(`  excluded (canary unproven): ${excludedVenues.length ? excludedVenues.join(', ') : 'none'}`);
