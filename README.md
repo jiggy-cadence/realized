@@ -239,8 +239,23 @@ Every number here is gated on instruments proving they can find a known-present 
 
 ## Run it
 
+**One command, the whole pitch, live data, no setup beyond a free API key:**
+
 ```bash
 npm install
+GRAPH_API_KEY=your-key node demo.js
+```
+
+Get a free key at [thegraph.com/studio](https://thegraph.com/studio) (Subgraph Studio -> create
+API key). `demo.js` fetches a live pool sample from The Graph right now, proves its own canary
+passes before printing anything, shows one concrete pool's advertised-vs-realized gap across all
+four concentration ranges, and reports the misleading-pool rate on that sample. No pre-built
+corpus, no server process — everything above is a live number, fetched during that one command.
+
+For the deeper evidence (110 independent monthly windows, 4 chains, cross-DEX, the DefiLlama
+grading) or to run the full corpus/MCP server yourself:
+
+```bash
 node test/canary.test.js                  # offline math + negative control
 GRAPH_API_KEY=... node test/canary.test.js --live
 GRAPH_API_KEY=... node scripts/build-corpus.js   # single-window corpus
