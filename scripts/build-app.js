@@ -268,17 +268,47 @@ function search(term){
   return [...starts, ...contains].slice(0,8);
 }
 
+// If nothing in the cached 202-pool set matches, fall back to a LIVE query against this same
+// origin's own API (/api/find) instead of silently saying "no results" -- the whole point of
+// having a real backend is that the tool isn't limited to what we pre-fetched. Debounced so
+// fast typing doesn't fire a live request per keystroke.
+let liveTimer=null, liveInFlight=null;
+async function liveSearch(term){
+  try{
+    const r = await fetch('/api/find?q='+encodeURIComponent(term)+'&limit=6');
+    if(!r.ok) return [];
+    const j = await r.json();
+    return (j.matches||[]).map(m=>({pair:m.pair, dex:m.dex, chain:m.chain, fee:m.feeTierPct, tvl:m.tvlUsd, id:m.poolId, live:true}));
+  }catch{ return []; }
+}
+
 function renderDD(term){
   current=search(term);
   hiIdx=-1;
+  clearTimeout(liveTimer);
   if(!current.length){
-    ddEl.innerHTML = term.trim() ? '<div class="nomatch">No pool matches "'+term.replace(/</g,'')+'"</div>' : '';
-    ddEl.classList.toggle('open', !!term.trim());
+    if(!term.trim()){ ddEl.classList.remove('open'); ddEl.innerHTML=''; return; }
+    ddEl.innerHTML = '<div class="nomatch">Searching live…</div>';
+    ddEl.classList.add('open');
+    liveTimer = setTimeout(async ()=>{
+      const t2 = qEl.value; // re-read in case it changed during debounce
+      if(t2.trim().toUpperCase()!==term.trim().toUpperCase()) return;
+      const live = await liveSearch(term);
+      if(qEl.value.trim().toUpperCase()!==term.trim().toUpperCase()) return; // stale response, user moved on
+      current = live;
+      hiIdx=-1;
+      if(!live.length){ ddEl.innerHTML='<div class="nomatch">No pool matches "'+term.replace(/</g,'')+'" — checked our '+DATA.length+' cached pools and a live lookup.</div>'; return; }
+      paintDD(true);
+    }, 350);
     return;
   }
+  paintDD(false);
+}
+
+function paintDD(isLive){
   ddEl.innerHTML = current.map((p,i)=>\`<div class="opt" data-i="\${i}">
-    <div><div class="p">\${p.pair}</div><div class="venue">\${p.dex} · \${p.chain} · \${p.fee}% fee</div></div>
-    <div class="meta">$\${(p.tvl/1e6).toFixed(1)}M TVL<br>\${f(p.adv)} advertised</div></div>\`).join('');
+    <div><div class="p">\${p.pair}\${isLive?' <span style="color:var(--acc);font-size:10px;font-weight:700">LIVE</span>':''}</div><div class="venue">\${p.dex} · \${p.chain} · \${p.fee}% fee</div></div>
+    <div class="meta">$\${(p.tvl/1e6).toFixed(1)}M TVL\${p.adv!==undefined?'<br>'+f(p.adv)+' advertised':''}</div></div>\`).join('');
   ddEl.classList.add('open');
 }
 
@@ -299,8 +329,22 @@ function closeDD(){ ddEl.classList.remove('open'); }
 
 let selected=null, rangeIdx=2; // default: "Typical" ±2x
 
-function pick(p){
-  selected=p; qEl.value=p.pair; clrEl.style.display='block'; closeDD(); showCard(p);
+async function pick(p){
+  qEl.value=p.pair; clrEl.style.display='block'; closeDD();
+  if(p.live || p.r===undefined){
+    // Live-search result only carries pair/dex/chain/fee/tvl/id -- fetch the full scored pool
+    // (r, fees, adv) from our own live API before the range card can compute anything.
+    showCard({...p, loading:true});
+    try{
+      const r = await fetch('/api/pool/'+encodeURIComponent(p.id||p.poolId)+'?dex='+p.dex+'&chain='+p.chain);
+      const full = await r.json();
+      if(full.error || !full.measurable){ showCard({...p, unmeasurable:true, reason: full.error||full.reason}); return; }
+      selected = {id:full.pool, pair:full.pair, dex:p.dex, chain:p.chain, fee:full.feeTierPct, tvl:Math.round(full.currentTvlUsd), r:full.priceRatio, fees:full.feeReturnPct, adv:full.advertisedAprPct, days:full.windowDays};
+      showCard(selected);
+    }catch{ showCard({...p, unmeasurable:true, reason:'network error'}); }
+    return;
+  }
+  selected=p; showCard(p);
   document.getElementById('card').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
@@ -308,10 +352,24 @@ function showCard(p){
   const card=document.getElementById('card');
   if(!p){ card.style.display='none'; card.innerHTML=''; return; }
   card.style.display='block';
+  const backBtn = '<button class="backbtn" id="back">← all pools</button>';
+  if(p.loading){
+    card.innerHTML = \`<div class="hero"><div class="hero-top"><div><div class="hero-pair">\${p.pair}</div>
+      <div class="hero-tags">Fetching live from The Graph…</div></div>\${backBtn}</div></div>\`;
+    document.getElementById('back').onclick=()=>{ qEl.value=''; clrEl.style.display='none'; showCard(null); selected=null; };
+    return;
+  }
+  if(p.unmeasurable){
+    card.innerHTML = \`<div class="hero"><div class="hero-top"><div><div class="hero-pair">\${p.pair}</div>
+      <div class="hero-tags">Couldn't measure this pool: \${(p.reason||'unknown reason').toString().replace(/</g,'')}</div></div>\${backBtn}</div>
+      <div class="callout warn">Not enough historical <code>poolDayData</code> to price this window — shown as unmeasurable, not as zero.</div></div>\`;
+    document.getElementById('back').onclick=()=>{ qEl.value=''; clrEl.style.display='none'; showCard(null); selected=null; };
+    return;
+  }
   card.innerHTML = \`<div class="hero">
     <div class="hero-top">
       <div><div class="hero-pair">\${p.pair}</div><div class="hero-tags">\${p.dex} · \${p.chain} · \${p.fee}% fee tier · $\${(p.tvl/1e6).toFixed(1)}M TVL</div></div>
-      <button class="backbtn" id="back">← all pools</button>
+      \${backBtn}
     </div>
     <div class="rangepick" id="rp"></div>
     <div class="rangecap" id="rc"></div>

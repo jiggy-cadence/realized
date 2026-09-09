@@ -15,19 +15,10 @@ import { writeFileSync, mkdirSync, readFileSync } from 'fs';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { scorePool, isLive, DEFAULT_LIVENESS, STABLES } from '../lib/realized.js';
+import { VENUES } from '../lib/venues.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = `${__dirname}/../data/pools.json`;
-
-const VENUES = {
-  'uniswap-v3': {
-    mainnet: '5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV',
-    arbitrum: 'FbCGRftH4a3yZugY7TnbYgPJVEv2LvMT6oF1fxPe9aJM',
-    polygon: '3hCPRGf4z88VC5rsBKU5AA9FBBq5nF3jbKJG7VZCbhjm',
-    base: '43Hwfi3dJSoGpyas9VwNoDAv55yjgGrPpNSmbQZArzMG',
-  },
-  aerodrome: { base: 'GENunSHWLBXm59mBSgPzQ8metBEp9YDfdqwFr91Av1UM' },
-};
 
 const key = process.env.GRAPH_API_KEY || readFileSync('/tmp/gk.txt', 'utf8').trim();
 const gql = async (id, query) => {
@@ -69,7 +60,7 @@ async function main() {
       const live = scored.filter((s) => !s.stablePair && isLive(s, DEFAULT_LIVENESS));
       for (const s of live) {
         out.push({
-          id: s.pool.slice(0, 10),
+          id: s.pool,
           pair: s.pair,
           dex,
           chain,
