@@ -531,13 +531,42 @@ async function pick(p){
       const r = await fetch('/api/pool/'+encodeURIComponent(p.id||p.poolId)+'?dex='+p.dex+'&chain='+p.chain);
       const full = await r.json();
       if(full.error || !full.measurable){ showCard({...p, unmeasurable:true, reason: full.error||full.reason}); return; }
-      selected = {id:full.pool, pair:full.pair, dex:p.dex, chain:p.chain, fee:full.feeTierPct, tvl:Math.round(full.currentTvlUsd), r:full.priceRatio, fees:full.feeReturnPct, adv:full.advertisedAprPct, days:full.windowDays};
+      selected = {id:full.pool, pair:full.pair, dex:p.dex, chain:p.chain, fee:full.feeTierPct, tvl:Math.round(full.currentTvlUsd), r:full.priceRatio, fees:full.feeReturnPct, adv:full.advertisedAprPct, days:full.windowDays, series:full.dailySeries};
       showCard(selected);
     }catch{ showCard({...p, unmeasurable:true, reason:'network error'}); }
     return;
   }
   selected=p; showCard(p);
   document.getElementById('card').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// Real cumulative-realized-return sparkline, not decoration. Zero line is
+// drawn explicitly and labelled -- for THIS specific finding, "did the line
+// cross zero" is the entire question, more informative than the line's shape.
+function sparkSvg(series, days){
+  if(!series || series.length < 3) return '';
+  const w=560, h=64, pad=6;
+  const vals = series.filter(v=>v!==null);
+  if(vals.length < 3) return '<div class="sub" style="margin:8px 0 0">Not enough daily data for a chart this window.</div>';
+  const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  const span = (hi - lo) || 1;
+  const x = i => pad + (i/(series.length-1)) * (w-2*pad);
+  const y = v => v===null ? null : h-pad - ((v-lo)/span) * (h-2*pad);
+  const zeroY = y(0);
+  let path='', started=false;
+  series.forEach((v,i)=>{
+    const yy=y(v);
+    if(yy===null){ started=false; return; }
+    path += (started?'L':'M')+x(i).toFixed(1)+','+yy.toFixed(1)+' ';
+    started=true;
+  });
+  const endVal = vals.at(-1), endColor = endVal<0 ? '#e08a8a' : '#6fd89a';
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;margin-top:10px">
+    <line x1="${pad}" y1="${zeroY.toFixed(1)}" x2="${w-pad}" y2="${zeroY.toFixed(1)}" stroke="#3a4552" stroke-width="1" stroke-dasharray="3,3"/>
+    <text x="${w-pad}" y="${(zeroY-4).toFixed(1)}" font-size="9" fill="#6b7684" text-anchor="end">0%</text>
+    <path d="${path}" fill="none" stroke="${endColor}" stroke-width="1.6"/>
+  </svg>
+  <div class="sub" style="margin-top:2px">cumulative realized return, day 1 → day ${days} (this window)</div>`;
 }
 
 function showCard(p){
@@ -567,6 +596,7 @@ function showCard(p){
     <div class="rangecap" id="rc"></div>
     <div class="verdict" id="vd"></div>
     <div id="cal"></div>
+    <div id="spark">${sparkSvg(p.series, p.days)}</div>
   </div>`;
   document.getElementById('back').onclick=()=>{ qEl.value=''; clrEl.style.display='none'; showCard(null); selected=null; };
   document.getElementById('rp').innerHTML = RANGES.map((r,i)=>`<button class="rbtn" data-i="${i}">${r.label}<small>${r.hint.split(' — ')[0]}</small></button>`).join('');
