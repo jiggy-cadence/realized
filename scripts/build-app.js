@@ -55,7 +55,7 @@ const apiPayload = {
     + 'IL=(pos/hodl-1)*100. w=1e8 approximates full-range. realizedAprPct = realizedReturnPct/days*365.',
   mcpServer: 'bin/mcp-server.js -- tools: find_pool, realized_return, audit_pools, explain_gap. '
     + 'find_pool(query) resolves a symbol like "WETH/USDC" to a poolId; no address needed.',
-  moreEndpoints: { report: '/realized.html', app: '/realized-app.html', repo: 'https://github.com/jiggy-cadence/realized' },
+  moreEndpoints: { report: '/report.html', repo: 'https://github.com/jiggy-cadence/realized' },
 };
 mkdirSync(`${__dirname}/../api`, { recursive: true });
 writeFileSync(`${__dirname}/../api/pools.json`, JSON.stringify(apiPayload));
@@ -74,7 +74,7 @@ const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>REALIZED — what did you actually make as an LP?</title>
 <meta name="description" content="Advertised LP APR has no price term, so it cannot show a loss. Search any Uniswap v3 or Aerodrome pool and see what liquidity providers actually took home.">
-<link rel="alternate" type="application/json" href="api/pools.json" title="Raw data (agent-usable)">
+<link rel="alternate" type="application/json" href="api/pools" title="Raw data (agent-usable)">
 <style>
 :root{--bg:#0b0f14;--fg:#e6edf3;--dim:#7d8590;--acc:#e07a5f;--good:#3fb950;--line:#1c2229;--card:#111820}
 *{box-sizing:border-box}
@@ -154,7 +154,7 @@ a{color:var(--acc)}
 </style></head><body><div class="wrap">
 
 <header>
-  <div class="brand">Realized <a href="api/pools.json">API for agents ↗</a></div>
+  <div class="brand">Realized <a href="api/pools">API for agents ↗</a></div>
   <h1>Your yield dashboard <em>can't</em> tell you that you lost money.</h1>
   <p class="sub">DEX-advertised APR is fee income annualized — it has no price term, so it's positive
   no matter what actually happened to your money. Search a pool and see what LPs really took home.</p>
@@ -202,7 +202,7 @@ didn't model the uplift. The <b>direction</b> is what survives; treat magnitudes
 <h3>How well does it hold up</h3>
 <p>${totalMonths} independent (non-overlapping) 30-day windows across ${chainsValidated} chains, plus the
 same instrument run unchanged on <b>Aerodrome Slipstream</b> — a different team, codebase and incentive
-model — showing the same defect, same shape. Full tables: <a href="realized.html">the measurement report</a>.</p>
+model — showing the same defect, same shape. Full tables: <a href="report.html">the measurement report</a>.</p>
 
 <h3>Things that are true and inconvenient</h3>
 <ul>
@@ -221,7 +221,7 @@ calibrating the <i>advertised metric</i> against it, live, per pool.</li>
 </ul>
 
 <h3>For agents</h3>
-<p>Raw JSON: <code>GET /api/pools.json</code> — documented schema + the IL formula inline, no key required,
+<p>Raw JSON: <code>GET /api/pools</code> — documented schema + the IL formula inline, no key required,
 CORS-open. MCP server: <code>bin/mcp-server.js</code> exposes <code>find_pool(query)</code> (resolve
 "WETH/USDC" → poolId, no address needed), <code>realized_return</code>, <code>audit_pools</code>,
 <code>explain_gap</code>. Source: <a href="https://github.com/jiggy-cadence/realized">github.com/jiggy-cadence/realized</a>.</p>
