@@ -209,6 +209,70 @@ generated 2026-09-09 20:35 UTC.</p>
 </div>
 
 
+
+<h2>DefiLlama says 40% APR. Should you believe it?</h2>
+<p class="sub">DefiLlama is where most people shop for yield, and it ships an ML prediction on
+every pool. Nobody publishes whether those predictions were right — so we graded them:
+8,092 instances across 459 pools, from
+26 archived snapshots of their own live site. The answer has two halves
+that point opposite ways.</p>
+<div class="leaderboards">
+  <div class="lb lb-bad">
+    <h3>Their raw accuracy is a mirage</h3>
+    <p class="sub" style="margin:0 0 8px">The edge over a naive baseline <strong>flips sign</strong>
+    depending on how much APR movement you allow. A number that changes sign when you move an
+    arbitrary knob is a parameter, not a finding.</p>
+    <table><thead><tr><th>tolerance</th><th>accuracy</th><th>baseline</th><th>edge</th></tr></thead><tbody>
+      <tr>
+        <td>strict 0%</td>
+        <td>53.8%</td>
+        <td>55.2%</td>
+        <td>-1.4pp</td>
+      </tr><tr>
+        <td>mid 5%</td>
+        <td>57.7%</td>
+        <td>53.2%</td>
+        <td>+4.5pp</td>
+      </tr><tr>
+        <td>loose 10%</td>
+        <td>60.7%</td>
+        <td>59.2%</td>
+        <td>+1.5pp</td>
+      </tr>
+    </tbody></table>
+  </div>
+  <div class="lb lb-good">
+    <h3>But their confidence is honest</h3>
+    <p class="sub" style="margin:0 0 8px">Sorted by DefiLlama's <em>own</em> stated confidence,
+    the edge rises monotonically. When they say they're sure, they've earned it. When they
+    aren't, the prediction is worth nothing.</p>
+    <table><thead><tr><th>their confidence</th><th>n</th><th>accuracy</th><th>edge</th></tr></thead><tbody>
+      <tr>
+        <td>tier 1 (lowest)</td>
+        <td>1,987</td>
+        <td>52.5%</td>
+        <td>-0.3pp</td>
+      </tr><tr>
+        <td>tier 2</td>
+        <td>2,639</td>
+        <td>56.7%</td>
+        <td>+3.1pp</td>
+      </tr><tr>
+        <td>tier 3 (highest)</td>
+        <td>3,466</td>
+        <td>61.4%</td>
+        <td>+8.3pp</td>
+      </tr>
+    </tbody></table>
+  </div>
+</div>
+<p class="sub" style="margin-top:14px"><strong>How to use this:</strong> trust their top-tier
+predictions, ignore their bottom-tier ones — and in every tier remember what's being predicted is
+<em>fee-only APY</em>, which has no impermanent-loss term. That's the number this whole site
+exists to correct. Grader canary: oracle 100%, inverted 0%,
+coinflip 50% — it provably tells a perfect predictor from an inverted one.</p>
+
+
 <h2>Or browse the 261 pools we track</h2>
 <table id="tbl"><thead><tr>
   <th data-k="pair">Pool</th>

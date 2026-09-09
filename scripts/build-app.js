@@ -30,6 +30,11 @@ const hist = R('data/history.json');
 // break the page; the "before you enter" section is simply omitted, not faked.
 let leaderboard = null;
 try { leaderboard = R('data/leaderboard.json'); } catch { /* not yet generated */ }
+// Same optional-file discipline as the leaderboard: build-llama-layer.js emits
+// this, and it refuses to write at all if its grader canary fails. Absent file
+// => section omitted, never faked.
+let llama = null;
+try { llama = R('data/llama-layer.json'); } catch { /* not yet generated */ }
 
 const chainsValidated = Object.values(hist.stability).filter((s) => s?.tight).length;
 const totalMonths = Object.values(hist.stability).reduce((a, s) => a + (s?.tight?.windows || 0), 0);
@@ -214,6 +219,50 @@ generated ${new Date(leaderboard.generatedAt).toISOString().slice(0, 16).replace
     </tbody></table>
   </div>
 </div>
+` : ''}
+
+${llama ? `
+<h2>DefiLlama says 40% APR. Should you believe it?</h2>
+<p class="sub">DefiLlama is where most people shop for yield, and it ships an ML prediction on
+every pool. Nobody publishes whether those predictions were right — so we graded them:
+${llama.source.nInstances.toLocaleString()} instances across ${llama.source.nPools} pools, from
+${llama.source.snapshots} archived snapshots of their own live site. The answer has two halves
+that point opposite ways.</p>
+<div class="leaderboards">
+  <div class="lb lb-bad">
+    <h3>Their raw accuracy is a mirage</h3>
+    <p class="sub" style="margin:0 0 8px">The edge over a naive baseline <strong>flips sign</strong>
+    depending on how much APR movement you allow. A number that changes sign when you move an
+    arbitrary knob is a parameter, not a finding.</p>
+    <table><thead><tr><th>tolerance</th><th>accuracy</th><th>baseline</th><th>edge</th></tr></thead><tbody>
+      ${llama.byBand.map((b) => `<tr>
+        <td>${b.band}</td>
+        <td>${b.accuracyPct.toFixed(1)}%</td>
+        <td>${b.baselinePct.toFixed(1)}%</td>
+        <td>${b.edgePp >= 0 ? '+' : ''}${b.edgePp.toFixed(1)}pp</td>
+      </tr>`).join('')}
+    </tbody></table>
+  </div>
+  <div class="lb lb-good">
+    <h3>But their confidence is honest</h3>
+    <p class="sub" style="margin:0 0 8px">Sorted by DefiLlama's <em>own</em> stated confidence,
+    the edge rises monotonically. When they say they're sure, they've earned it. When they
+    aren't, the prediction is worth nothing.</p>
+    <table><thead><tr><th>their confidence</th><th>n</th><th>accuracy</th><th>edge</th></tr></thead><tbody>
+      ${llama.byConfidence.map((t) => `<tr>
+        <td>tier ${t.tier}${t.tier === 3 ? ' (highest)' : t.tier === 1 ? ' (lowest)' : ''}</td>
+        <td>${t.n.toLocaleString()}</td>
+        <td>${t.accuracyPct.toFixed(1)}%</td>
+        <td>${t.edgePp >= 0 ? '+' : ''}${t.edgePp.toFixed(1)}pp</td>
+      </tr>`).join('')}
+    </tbody></table>
+  </div>
+</div>
+<p class="sub" style="margin-top:14px"><strong>How to use this:</strong> trust their top-tier
+predictions, ignore their bottom-tier ones — and in every tier remember what's being predicted is
+<em>fee-only APY</em>, which has no impermanent-loss term. That's the number this whole site
+exists to correct. Grader canary: oracle ${llama.canary.oracle}%, inverted ${llama.canary.inverted}%,
+coinflip ${llama.canary.coinflip}% — it provably tells a perfect predictor from an inverted one.</p>
 ` : ''}
 
 <h2>Or browse the ${pools.pools.length} pools we track</h2>
