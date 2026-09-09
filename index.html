@@ -79,6 +79,13 @@ details p,details li{color:#a9b4bf;font-size:13.5px;max-width:74ch}
 code{background:#1a212a;padding:2px 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .foot{margin-top:30px;color:var(--dim);font-size:12px}
 a{color:var(--acc)}
+.leaderboards{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:14px}
+@media(max-width:680px){.leaderboards{grid-template-columns:1fr}}
+.lb h3{font-size:13px;margin:0 0 8px;letter-spacing:.02em}
+.lb-good h3{color:#6fd89a}
+.lb-bad h3{color:#e08a8a}
+.lb table{margin-top:0;font-size:12.5px}
+.lb th,.lb td{padding:6px 8px 6px 0}
 </style></head><body><div class="wrap">
 
 <header>
@@ -98,6 +105,109 @@ a{color:var(--acc)}
 </div>
 
 <div id="card"></div>
+
+
+<h2>Before you enter a pool — which advertised APRs can you currently trust?</h2>
+<p class="sub">Same instrument as everywhere else on this page, re-ranked live. "Honest" means
+the advertised number was a good predictor of what you'd actually make — not that it was high.
+Canary: worst stable-pair |IL| = 0.0000% (must be
+&lt;1% or this section would not render). Sample: 55 live pools,
+generated 2026-09-09 20:35 UTC.</p>
+<div class="leaderboards">
+  <div class="lb lb-good">
+    <h3>Most honest</h3>
+    <table><thead><tr><th>pool</th><th>advertised</th><th>realized</th><th>gap</th></tr></thead><tbody>
+      <tr>
+        <td>WETH/weETH</td>
+        <td>0.1%</td>
+        <td>0.2%</td>
+        <td>-0.01pt</td>
+      </tr><tr>
+        <td>PEPE/WETH</td>
+        <td>0.0%</td>
+        <td>0.0%</td>
+        <td>+0.02pt</td>
+      </tr><tr>
+        <td>Metis/WETH</td>
+        <td>1.5%</td>
+        <td>1.4%</td>
+        <td>+0.07pt</td>
+      </tr><tr>
+        <td>wTAO/WETH</td>
+        <td>5.4%</td>
+        <td>5.2%</td>
+        <td>+0.13pt</td>
+      </tr><tr>
+        <td>WETH/weETH</td>
+        <td>0.1%</td>
+        <td>0.3%</td>
+        <td>-0.18pt</td>
+      </tr><tr>
+        <td>cbETH/WETH</td>
+        <td>0.1%</td>
+        <td>0.5%</td>
+        <td>-0.33pt</td>
+      </tr><tr>
+        <td>WBTC/WETH</td>
+        <td>0.1%</td>
+        <td>-0.2%</td>
+        <td>+0.34pt</td>
+      </tr><tr>
+        <td>USD0/USDC</td>
+        <td>0.1%</td>
+        <td>0.5%</td>
+        <td>-0.40pt</td>
+      </tr>
+    </tbody></table>
+  </div>
+  <div class="lb lb-bad">
+    <h3>Most misleading</h3>
+    <table><thead><tr><th>pool</th><th>advertised</th><th>realized</th><th>gap</th></tr></thead><tbody>
+      <tr>
+        <td>HEX/WETH</td>
+        <td>+0.3%</td>
+        <td>-54.1%</td>
+        <td>+54.42pt</td>
+      </tr><tr>
+        <td>DAI/WETH</td>
+        <td>+3.3%</td>
+        <td>-10.3%</td>
+        <td>+13.62pt</td>
+      </tr><tr>
+        <td>DAI/WETH</td>
+        <td>+0.2%</td>
+        <td>-10.8%</td>
+        <td>+10.94pt</td>
+      </tr><tr>
+        <td>USDC/WETH</td>
+        <td>+2.0%</td>
+        <td>-8.7%</td>
+        <td>+10.71pt</td>
+      </tr><tr>
+        <td>USDC/WETH</td>
+        <td>+3.3%</td>
+        <td>-7.1%</td>
+        <td>+10.38pt</td>
+      </tr><tr>
+        <td>WETH/USDT</td>
+        <td>+4.7%</td>
+        <td>-5.1%</td>
+        <td>+9.81pt</td>
+      </tr><tr>
+        <td>WETH/USDT</td>
+        <td>+2.0%</td>
+        <td>-7.7%</td>
+        <td>+9.69pt</td>
+      </tr><tr>
+        <td>WBTC/USDT</td>
+        <td>+7.3%</td>
+        <td>-1.8%</td>
+        <td>+9.11pt</td>
+      </tr>
+    </tbody></table>
+  </div>
+</div>
+
 
 <h2>Or browse the 261 pools we track</h2>
 <table id="tbl"><thead><tr>
