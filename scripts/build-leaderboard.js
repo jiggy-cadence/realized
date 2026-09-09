@@ -83,20 +83,37 @@ async function main() {
     .sort((a, b) => b.gapPts - a.gapPts)
     .slice(0, 10);
 
+  // THE LIST AN LP ACTUALLY WANTS. "Honest" and "misleading" are both about
+  // truthfulness -- a pool can be perfectly honest and still lose you 8%.
+  // This one answers the question someone would actually bookmark the site
+  // for: where did liquidity providers actually make money, after IL?
+  // Ranked on realized APR, full-range (the most generous case, so a pool
+  // cannot buy its way onto this list by assuming an unrealistic position).
+  const topEarners = [...ranked].sort((a, b) => b.realizedAprPct - a.realizedAprPct).slice(0, 10);
+  const worstLosers = [...ranked].sort((a, b) => a.realizedAprPct - b.realizedAprPct).slice(0, 10);
+
   const out = {
     generatedAt: new Date().toISOString(),
     method: 'full-range advertised-vs-realized gap, ranked. Live sample, same canary/liveness gate as the corpus-wide audit.',
     canary: { worstStableIlPct: worstStableIl, passed: true },
     sampleSize: volatile.length,
+    topEarners,
+    worstLosers,
     mostHonest,
     mostMisleading,
   };
   writeFileSync(new URL('../data/leaderboard.json', import.meta.url), JSON.stringify(out, null, 2));
-  console.log(`\nwrote data/leaderboard.json — ${mostHonest.length} honest, ${mostMisleading.length} misleading`);
+  console.log(`\nwrote data/leaderboard.json — ${topEarners.length} earners, ${mostHonest.length} honest, ${mostMisleading.length} misleading`);
+  console.log('\nTOP EARNERS (highest realized return, full range):');
+  for (const r of topEarners.slice(0, 5)) console.log(`  ${r.pair.padEnd(16)} realized ${r.realizedAprPct.toFixed(1)}%  adv ${r.advertisedAprPct.toFixed(1)}%  gap ${r.gapPts.toFixed(2)}pts`);
   console.log('\nMOST HONEST (advertised ~= realized):');
   for (const r of mostHonest.slice(0, 5)) console.log(`  ${r.pair.padEnd(16)} gap ${r.gapPts.toFixed(2)}pts  adv ${r.advertisedAprPct.toFixed(1)}%  realized ${r.realizedAprPct.toFixed(1)}%`);
   console.log('\nMOST MISLEADING (advertised positive, realized negative, biggest gap):');
   for (const r of mostMisleading.slice(0, 5)) console.log(`  ${r.pair.padEnd(16)} gap ${r.gapPts.toFixed(2)}pts  adv ${r.advertisedAprPct.toFixed(1)}%  realized ${r.realizedAprPct.toFixed(1)}%`);
+  console.log('\nTOP EARNERS (what LPs actually took home, full-range):');
+  for (const r of topEarners.slice(0, 5)) console.log(`  ${r.pair.padEnd(16)} realized ${r.realizedAprPct.toFixed(1)}%  (advertised ${r.advertisedAprPct.toFixed(1)}%)`);
+  console.log('\nWORST LOSERS:');
+  for (const r of worstLosers.slice(0, 5)) console.log(`  ${r.pair.padEnd(16)} realized ${r.realizedAprPct.toFixed(1)}%  (advertised ${r.advertisedAprPct.toFixed(1)}%)`);
 }
 
 main().catch((e) => { console.error('FAILED (error, not a finding):', e.message); process.exit(1); });

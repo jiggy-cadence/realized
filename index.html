@@ -90,9 +90,14 @@ a{color:var(--acc)}
 
 <header>
   <div class="brand">Realized <a href="api/pools">API for agents ↗</a></div>
-  <h1>Your yield dashboard <em>can't</em> tell you that you lost money.</h1>
-  <p class="sub">DEX-advertised APR is fee income annualized — it has no price term, so it's positive
-  no matter what actually happened to your money. Search a pool and see what LPs really took home.</p>
+  
+  <h1>33% of live pools advertise a profit
+  while LPs actually lost money.</h1>
+  <p class="sub">Median advertised APR right now: <strong>+1.8%</strong>.
+  Median realized (fees + impermanent loss): <strong>+1.4%</strong>.
+  DEX-advertised APR has no price term — it can't show a loss no matter what happened to your money.
+  Search a pool below and see what LPs actually took home.</p>
+  
 </header>
 
 <div class="searchwrap">
@@ -107,41 +112,121 @@ a{color:var(--acc)}
 <div id="card"></div>
 
 
+<h2>Where LPs actually made money — last 30 days</h2>
+<p class="sub">Not advertised APR. What a liquidity provider actually took home after impermanent
+loss, full-range. This is the list to read first; the honesty tables below tell you whether the
+advertised number was <em>predictive</em>, which is a different question from whether the pool paid.</p>
+<div class="leaderboards">
+  <div class="lb lb-good">
+    <h3>Top earners</h3>
+    <table><thead><tr><th>pool</th><th>realized</th><th>advertised</th></tr></thead><tbody>
+      <tr>
+        <td>USDC/SEI</td>
+        <td><strong>+13.6%</strong></td>
+        <td>23.5%</td>
+      </tr><tr>
+        <td>WBTC/WETH</td>
+        <td><strong>+11.7%</strong></td>
+        <td>4.3%</td>
+      </tr><tr>
+        <td>AAVE/WETH</td>
+        <td><strong>+10.1%</strong></td>
+        <td>2.9%</td>
+      </tr><tr>
+        <td>WBTC/USDT</td>
+        <td><strong>+9.2%</strong></td>
+        <td>12.5%</td>
+      </tr><tr>
+        <td>PAXG/USDC</td>
+        <td><strong>+9.2%</strong></td>
+        <td>5.4%</td>
+      </tr><tr>
+        <td>LINK/WETH</td>
+        <td><strong>+8.4%</strong></td>
+        <td>22.8%</td>
+      </tr><tr>
+        <td>ENA/WETH</td>
+        <td><strong>+8.3%</strong></td>
+        <td>11.2%</td>
+      </tr><tr>
+        <td>WETH/USDT</td>
+        <td><strong>+7.2%</strong></td>
+        <td>14.3%</td>
+      </tr>
+    </tbody></table>
+  </div>
+  <div class="lb lb-bad">
+    <h3>Worst losers</h3>
+    <table><thead><tr><th>pool</th><th>realized</th><th>advertised</th></tr></thead><tbody>
+      <tr>
+        <td>HEX/WETH</td>
+        <td><strong>-52.0%</strong></td>
+        <td>+0.3%</td>
+      </tr><tr>
+        <td>DAI/WETH</td>
+        <td><strong>-10.7%</strong></td>
+        <td>+0.2%</td>
+      </tr><tr>
+        <td>DAI/WETH</td>
+        <td><strong>-10.3%</strong></td>
+        <td>+3.3%</td>
+      </tr><tr>
+        <td>USDC/WETH</td>
+        <td><strong>-8.7%</strong></td>
+        <td>+2.0%</td>
+      </tr><tr>
+        <td>WETH/USDT</td>
+        <td><strong>-7.6%</strong></td>
+        <td>+2.1%</td>
+      </tr><tr>
+        <td>USDC/WETH</td>
+        <td><strong>-7.0%</strong></td>
+        <td>+3.4%</td>
+      </tr><tr>
+        <td>WETH/USDT</td>
+        <td><strong>-5.0%</strong></td>
+        <td>+4.8%</td>
+      </tr><tr>
+        <td>WBTC/USDC</td>
+        <td><strong>-4.9%</strong></td>
+        <td>+1.1%</td>
+      </tr>
+    </tbody></table>
+  </div>
+</div>
+
+
+
 <h2>Before you enter a pool — which advertised APRs can you currently trust?</h2>
 <p class="sub">Same instrument as everywhere else on this page, re-ranked live. "Honest" means
 the advertised number was a good predictor of what you'd actually make — not that it was high.
 Canary: worst stable-pair |IL| = 0.0000% (must be
 &lt;1% or this section would not render). Sample: 55 live pools,
-generated 2026-09-09 20:35 UTC.</p>
+generated 2026-09-09 21:35 UTC.</p>
 <div class="leaderboards">
   <div class="lb lb-good">
     <h3>Most honest</h3>
     <table><thead><tr><th>pool</th><th>advertised</th><th>realized</th><th>gap</th></tr></thead><tbody>
       <tr>
-        <td>WETH/weETH</td>
-        <td>0.1%</td>
-        <td>0.2%</td>
-        <td>-0.01pt</td>
+        <td>Metis/WETH</td>
+        <td>1.5%</td>
+        <td>1.5%</td>
+        <td>+0.01pt</td>
       </tr><tr>
         <td>PEPE/WETH</td>
         <td>0.0%</td>
-        <td>0.0%</td>
-        <td>+0.02pt</td>
+        <td>-0.0%</td>
+        <td>+0.04pt</td>
       </tr><tr>
-        <td>Metis/WETH</td>
-        <td>1.5%</td>
-        <td>1.4%</td>
-        <td>+0.07pt</td>
-      </tr><tr>
-        <td>wTAO/WETH</td>
-        <td>5.4%</td>
-        <td>5.2%</td>
-        <td>+0.13pt</td>
+        <td>WETH/weETH</td>
+        <td>0.2%</td>
+        <td>0.2%</td>
+        <td>+0.04pt</td>
       </tr><tr>
         <td>WETH/weETH</td>
         <td>0.1%</td>
         <td>0.3%</td>
-        <td>-0.18pt</td>
+        <td>-0.17pt</td>
       </tr><tr>
         <td>cbETH/WETH</td>
         <td>0.1%</td>
@@ -152,6 +237,11 @@ generated 2026-09-09 20:35 UTC.</p>
         <td>0.1%</td>
         <td>-0.2%</td>
         <td>+0.34pt</td>
+      </tr><tr>
+        <td>wTAO/WETH</td>
+        <td>5.6%</td>
+        <td>5.2%</td>
+        <td>+0.40pt</td>
       </tr><tr>
         <td>USD0/USDC</td>
         <td>0.1%</td>
@@ -166,18 +256,18 @@ generated 2026-09-09 20:35 UTC.</p>
       <tr>
         <td>HEX/WETH</td>
         <td>+0.3%</td>
-        <td>-54.1%</td>
-        <td>+54.42pt</td>
+        <td>-52.0%</td>
+        <td>+52.31pt</td>
       </tr><tr>
         <td>DAI/WETH</td>
         <td>+3.3%</td>
         <td>-10.3%</td>
-        <td>+13.62pt</td>
+        <td>+13.63pt</td>
       </tr><tr>
         <td>DAI/WETH</td>
         <td>+0.2%</td>
-        <td>-10.8%</td>
-        <td>+10.94pt</td>
+        <td>-10.7%</td>
+        <td>+10.92pt</td>
       </tr><tr>
         <td>USDC/WETH</td>
         <td>+2.0%</td>
@@ -185,24 +275,24 @@ generated 2026-09-09 20:35 UTC.</p>
         <td>+10.71pt</td>
       </tr><tr>
         <td>USDC/WETH</td>
-        <td>+3.3%</td>
-        <td>-7.1%</td>
-        <td>+10.38pt</td>
+        <td>+3.4%</td>
+        <td>-7.0%</td>
+        <td>+10.41pt</td>
       </tr><tr>
         <td>WETH/USDT</td>
-        <td>+4.7%</td>
-        <td>-5.1%</td>
-        <td>+9.81pt</td>
+        <td>+4.8%</td>
+        <td>-5.0%</td>
+        <td>+9.82pt</td>
       </tr><tr>
         <td>WETH/USDT</td>
-        <td>+2.0%</td>
-        <td>-7.7%</td>
-        <td>+9.69pt</td>
+        <td>+2.1%</td>
+        <td>-7.6%</td>
+        <td>+9.70pt</td>
       </tr><tr>
         <td>WBTC/USDT</td>
-        <td>+7.3%</td>
+        <td>+7.4%</td>
         <td>-1.8%</td>
-        <td>+9.11pt</td>
+        <td>+9.12pt</td>
       </tr>
     </tbody></table>
   </div>

@@ -35,6 +35,13 @@ try { leaderboard = R('data/leaderboard.json'); } catch { /* not yet generated *
 // => section omitted, never faked.
 let llama = null;
 try { llama = R('data/llama-layer.json'); } catch { /* not yet generated */ }
+// corpus.json holds the corpus-wide headline (medianAdvertisedAprPct etc) --
+// used to put a LIVE NUMBER in the hero instead of a thesis paragraph.
+// Jiggy, 2026-09-09: "a bunch of words but why would people care" -- correct.
+// A person landing here wants a number that helps them decide, not a sentence
+// explaining a concept. Falls back to the old static headline if absent.
+let corpusHeadline = null;
+try { corpusHeadline = R('data/corpus.json').headline; } catch { /* not yet generated */ }
 
 const chainsValidated = Object.values(hist.stability).filter((s) => s?.tight).length;
 const totalMonths = Object.values(hist.stability).reduce((a, s) => a + (s?.tight?.windows || 0), 0);
@@ -172,9 +179,18 @@ a{color:var(--acc)}
 
 <header>
   <div class="brand">Realized <a href="api/pools">API for agents ↗</a></div>
+  ${corpusHeadline ? `
+  <h1>${corpusHeadline.misleadingPct.toFixed(0)}% of live pools advertise a profit
+  while LPs actually lost money.</h1>
+  <p class="sub">Median advertised APR right now: <strong>+${corpusHeadline.medianAdvertisedAprPct.toFixed(1)}%</strong>.
+  Median realized (fees + impermanent loss): <strong>${corpusHeadline.medianRealizedAprPct >= 0 ? '+' : ''}${corpusHeadline.medianRealizedAprPct.toFixed(1)}%</strong>.
+  DEX-advertised APR has no price term — it can't show a loss no matter what happened to your money.
+  Search a pool below and see what LPs actually took home.</p>
+  ` : `
   <h1>Your yield dashboard <em>can't</em> tell you that you lost money.</h1>
   <p class="sub">DEX-advertised APR is fee income annualized — it has no price term, so it's positive
   no matter what actually happened to your money. Search a pool and see what LPs really took home.</p>
+  `}
 </header>
 
 <div class="searchwrap">
@@ -187,6 +203,35 @@ a{color:var(--acc)}
 </div>
 
 <div id="card"></div>
+
+${leaderboard?.topEarners ? `
+<h2>Where LPs actually made money — last 30 days</h2>
+<p class="sub">Not advertised APR. What a liquidity provider actually took home after impermanent
+loss, full-range. This is the list to read first; the honesty tables below tell you whether the
+advertised number was <em>predictive</em>, which is a different question from whether the pool paid.</p>
+<div class="leaderboards">
+  <div class="lb lb-good">
+    <h3>Top earners</h3>
+    <table><thead><tr><th>pool</th><th>realized</th><th>advertised</th></tr></thead><tbody>
+      ${leaderboard.topEarners.slice(0, 8).map((r) => `<tr>
+        <td>${r.pair}</td>
+        <td><strong>${r.realizedAprPct >= 0 ? '+' : ''}${r.realizedAprPct.toFixed(1)}%</strong></td>
+        <td>${r.advertisedAprPct.toFixed(1)}%</td>
+      </tr>`).join('')}
+    </tbody></table>
+  </div>
+  <div class="lb lb-bad">
+    <h3>Worst losers</h3>
+    <table><thead><tr><th>pool</th><th>realized</th><th>advertised</th></tr></thead><tbody>
+      ${(leaderboard.worstLosers || []).slice(0, 8).map((r) => `<tr>
+        <td>${r.pair}</td>
+        <td><strong>${r.realizedAprPct.toFixed(1)}%</strong></td>
+        <td>+${r.advertisedAprPct.toFixed(1)}%</td>
+      </tr>`).join('')}
+    </tbody></table>
+  </div>
+</div>
+` : ''}
 
 ${leaderboard ? `
 <h2>Before you enter a pool — which advertised APRs can you currently trust?</h2>
