@@ -33,6 +33,11 @@ try { leaderboard = R('data/leaderboard.json'); } catch { /* not yet generated *
 // Same optional-file discipline as the leaderboard: build-llama-layer.js emits
 // this, and it refuses to write at all if its grader canary fails. Absent file
 // => section omitted, never faked.
+// Corpus-wide independent price audit (1inch spot vs subgraph token0Price). Optional file,
+// same discipline as every other generated input: absent -> section omitted, never faked.
+let pricecheck = null;
+try { pricecheck = R('data/pricecheck.json'); } catch { /* not yet generated */ }
+
 let llama = null;
 try { llama = R('data/llama-layer.json'); } catch { /* not yet generated */ }
 // corpus.json holds the corpus-wide headline (medianAdvertisedAprPct etc) --
@@ -301,6 +306,13 @@ td[class^="trust-"]{font-size:11.5px}
 .acard code{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfd8e3;background:#0d131a;padding:1px 5px;border-radius:4px}
 .acard a{color:var(--acc);text-decoration:none}
 .acard a:hover{text-decoration:underline}
+.logo{width:22px;height:22px;border-radius:5px;vertical-align:-6px;margin-right:9px}
+.audit{margin-top:46px;padding-top:34px;border-top:1px solid var(--line)}
+.astat{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
+@media(max-width:680px){.astat{grid-template-columns:repeat(2,1fr)}}
+.astat div{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px}
+.astat b{display:block;font-size:22px;font-weight:750;letter-spacing:-.02em;color:#6fd89a;font-variant-numeric:tabular-nums}
+.astat span{display:block;font-size:11.5px;color:var(--dim);margin-top:4px}
 .roadmap{margin-top:46px;padding-top:34px;border-top:1px solid var(--line)}
 .rgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:18px}
 @media(max-width:780px){.rgrid{grid-template-columns:1fr}}
@@ -318,7 +330,7 @@ td[class^="trust-"]{font-size:11.5px}
 </style></head><body><div class="wrap">
 
 <header>
-  <div class="brand">Realized <a href="#agents">API &amp; MCP for agents ↗</a></div>
+  <div class="brand"><img src="assets/logo-64.png" alt="" class="logo">Realized <a href="#agents">API &amp; MCP for agents ↗</a></div>
 </header>
 
 ${shock ? `
@@ -491,6 +503,32 @@ ${shock ? shock.id : '0x88e6...5640'}?entry=2026-07-28&amp;range=2"</code></pre>
     </div>
   </div>
 </div>
+
+${pricecheck && pricecheck.counts.compared > 0 ? `
+<div class="audit">
+  <h2>We audited our own price feed</h2>
+  <p class="sub">Every number on this page is a function of a price ratio — and that ratio came from
+  the same subgraph as the fees. That is the exact circularity we accuse advertised APR of, so we
+  don't get to exempt ourselves from it. <strong>1inch</strong>'s aggregator prices the same tokens
+  independently, across venues, having never seen our subgraph. We ran it on the whole corpus.</p>
+  <div class="astat">
+    <div><b>${pricecheck.agreementPct.toFixed(1)}%</b><span>agree within ${pricecheck.threshold}%</span></div>
+    <div><b>${pricecheck.medianAbsDivergencePct.toFixed(3)}%</b><span>median divergence</span></div>
+    <div><b>${pricecheck.p90AbsDivergencePct.toFixed(2)}%</b><span>90th percentile</span></div>
+    <div><b>${pricecheck.counts.compared}</b><span>pools compared</span></div>
+  </div>
+  <p class="sub" style="margin-top:16px">And the tail, published on purpose — a good median hiding a
+  burning tail is the self-flattery this project exists to catch. The two real disagreements are
+  ${pricecheck.worstDivergences.slice(0, 2).map((w) => `<strong>${w.pair}</strong> (${w.divergencePct.toFixed(1)}%)`).join(' and ')}:
+  a dead stablecoin and a thin gold-pair route, where the subgraph still carries a price 1inch
+  correctly refuses to honour. That is a stale-price detector, not a broken instrument — and we'd
+  rather show you the two than quietly average them away.</p>
+  <p class="sub" style="margin-top:10px;color:#5a6572;font-size:12px">Spot vs spot: this corroborates
+  the current price leg. The historical series still comes only from the indexer — no RPC provides it.
+  ${pricecheck.counts.unpriced} pool${pricecheck.counts.unpriced === 1 ? '' : 's'} had no 1inch price and
+  ${pricecheck.counts.unpriced === 1 ? 'is' : 'are'} reported as unpriced, never counted as agreement.</p>
+</div>
+` : ''}
 
 <div class="roadmap">
   <h2>Where this goes</h2>

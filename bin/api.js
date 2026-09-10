@@ -327,6 +327,13 @@ const server = createServer(async (req, res) => {
     const file = staticMap[p];
     if (file && existsSync(join(ROOT, file))) return serveFile(res, join(ROOT, file));
 
+    // assets/ (logo, images). Whitelisted by extension and path-checked so a crafted URL
+    // cannot walk out of the directory.
+    if (p.startsWith('/assets/') && /\.(png|jpg|jpeg|svg|webp|ico)$/i.test(p)) {
+      const target = join(ROOT, 'assets', p.slice('/assets/'.length));
+      if (target.startsWith(join(ROOT, 'assets')) && existsSync(target)) return serveFile(res, target);
+    }
+
     return json(res, 404, { error: 'not found', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/position/{id}?entry=2026-08-01', '/api/audit', '/api/venues'] });
   } catch (e) {
     return json(res, 500, { error: String(e.message || e) });
