@@ -61,7 +61,7 @@ export function impermanentLossPct(r) {
 
 const POOL_FIELDS = `
   id feeTier totalValueLockedUSD
-  token0 { symbol } token1 { symbol }
+  token0 { id symbol } token1 { id symbol }
   poolDayData(first: $DAYS, orderBy: date, orderDirection: desc) {
     date volumeUSD feesUSD tvlUSD token0Price
   }
@@ -86,7 +86,7 @@ export async function fetchPool(url, poolId, days = 30) {
 export async function fetchPoolFrom(url, poolId, entryTimestamp) {
   const data = await query(url, `{ pool(id: "${poolId.toLowerCase()}") {
     id feeTier totalValueLockedUSD
-    token0 { symbol } token1 { symbol }
+    token0 { id symbol } token1 { id symbol }
     poolDayData(
       first: 1000, orderBy: date, orderDirection: asc,
       where: { date_gte: ${Math.floor(entryTimestamp)} }

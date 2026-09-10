@@ -30,6 +30,14 @@ import {
 } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
 import { VENUES, subgraphId, venueList } from '../lib/venues.js';
+import { crossCheckPrice } from '../packages/core/src/oneinch.js';
+
+// 1inch key is optional. Present -> position responses carry an independent price cross-check.
+// Absent -> the field says so honestly. Same on-disk pattern as the Graph key.
+let ONEINCH_KEY = process.env.ONEINCH_API_KEY || null;
+if (!ONEINCH_KEY) {
+  try { ONEINCH_KEY = JSON.parse(readFileSync('/home/ubuntu/.config/cadence-secure/1inch.json', 'utf8')).api_key; } catch { /* no key yet */ }
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -174,8 +182,20 @@ async function livePosition(poolId, { entry, range = 2 } = {}, dex = 'uniswap-v3
   if (!pool) return { error: `pool ${poolId} not found on ${dex}/${chain}` };
   const pos = positionRealized(pool, range);
   if (!pos.measurable) return pos;
+  // Independent price second-opinion from 1inch. Non-load-bearing and non-blocking: if the
+  // key is absent or 1inch is down, priceCheck.available is false and the realized number is
+  // unchanged. The subgraph remains the source of truth; this only says whether an unrelated
+  // aggregator vouches for the current price our IL leg depends on.
+  const priceCheck = await crossCheckPrice({
+    token0: pool.token0?.id,
+    token1: pool.token1?.id,
+    subgraphPrice: pos.currentPrice,
+    chain,
+    apiKey: ONEINCH_KEY,
+  });
   return {
     ...pos,
+    priceCheck,
     verdict: pos.outOfRange
       ? `Price left your +/-${range}x range: realized ${pos.realizedAprPct.toFixed(1)}% annualized, and this loss is LOCKED IN, not impermanent.`
       : `In-range the whole time: realized ${pos.realizedAprPct.toFixed(1)}% annualized (fees ${pos.feeReturnPct.toFixed(2)}% + IL ${pos.impermanentLossPct.toFixed(2)}%).`,
