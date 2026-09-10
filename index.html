@@ -105,9 +105,6 @@ td[class^="trust-"]{font-size:11.5px}
   Median realized (fees + impermanent loss): <strong>+1.4%</strong>.
   DEX-advertised APR has no price term — it can't show a loss no matter what happened to your money.
   Search a pool below and see what LPs actually took home.</p>
-  <div class="ribbon">Instrument status:
-  <span class="chip">uniswap-v3/mainnet ✓</span><span class="chip">uniswap-v3/arbitrum ✓</span><span class="chip">uniswap-v3/polygon ✓</span><span class="chip">uniswap-v3/base ✓</span><span class="chip">aerodrome/base ✓</span>
-  each venue publishes only if its stable-pair canary shows ~0 impermanent loss (worst here: 4.7e-4%).</div>
   
 </header>
 
@@ -311,6 +308,16 @@ generated 2026-09-09 21:35 UTC.</p>
 
 
 
+<h2>Or browse the 256 pools we track</h2>
+<table id="tbl"><thead><tr>
+  <th data-k="pair">Pool</th>
+  <th data-k="tvl">TVL</th>
+  <th data-k="adv">Advertised</th>
+  <th data-k="realApr" class="hide-s">Typical-range reality</th>
+  <th data-k="trustLabel">Trust</th>
+</tr></thead><tbody id="tb"></tbody></table>
+
+
 <h2>DefiLlama says 40% APR. Should you believe it?</h2>
 <p class="sub">DefiLlama is where most people shop for yield, and it ships an ML prediction on
 every pool. Nobody publishes whether those predictions were right — so we graded them:
@@ -374,14 +381,6 @@ exists to correct. Grader canary: oracle 100%, inverted 0%,
 coinflip 50% — it provably tells a perfect predictor from an inverted one.</p>
 
 
-<h2>Or browse the 256 pools we track</h2>
-<table id="tbl"><thead><tr>
-  <th data-k="pair">Pool</th>
-  <th data-k="tvl">TVL</th>
-  <th data-k="adv">Advertised</th>
-  <th data-k="realApr" class="hide-s">Typical-range reality</th>
-  <th data-k="trustLabel">Trust</th>
-</tr></thead><tbody id="tb"></tbody></table>
 
 <details>
 <summary>Method, limits, and everything we got wrong on the way here</summary>

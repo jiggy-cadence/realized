@@ -215,9 +215,6 @@ td[class^="trust-"]{font-size:11.5px}
   Median realized (fees + impermanent loss): <strong>${corpusHeadline.medianRealizedAprPct >= 0 ? '+' : ''}${corpusHeadline.medianRealizedAprPct.toFixed(1)}%</strong>.
   DEX-advertised APR has no price term — it can't show a loss no matter what happened to your money.
   Search a pool below and see what LPs actually took home.</p>
-  <div class="ribbon">Instrument status:
-  ${Object.entries(pools.canaryByVenue).map(([v, c]) => `<span class="chip${c.passed ? '' : ' fail'}">${v} ${c.passed ? '✓' : '✗ excluded'}</span>`).join('')}
-  each venue publishes only if its stable-pair canary shows ~0 impermanent loss (worst here: ${Math.max(...Object.values(pools.canaryByVenue).filter((c) => c.passed).map((c) => c.worstAbsIlPct)).toExponential(1)}%).</div>
   ` : `
   <h1>Your yield dashboard <em>can't</em> tell you that you lost money.</h1>
   <p class="sub">DEX-advertised APR is fee income annualized — it has no price term, so it's positive
@@ -298,6 +295,16 @@ generated ${new Date(leaderboard.generatedAt).toISOString().slice(0, 16).replace
 </div>
 ` : ''}
 
+
+<h2>Or browse the ${pools.pools.length} pools we track</h2>
+<table id="tbl"><thead><tr>
+  <th data-k="pair">Pool</th>
+  <th data-k="tvl">TVL</th>
+  <th data-k="adv">Advertised</th>
+  <th data-k="realApr" class="hide-s">Typical-range reality</th>
+  <th data-k="trustLabel">Trust</th>
+</tr></thead><tbody id="tb"></tbody></table>
+
 ${llama ? `
 <h2>DefiLlama says 40% APR. Should you believe it?</h2>
 <p class="sub">DefiLlama is where most people shop for yield, and it ships an ML prediction on
@@ -342,14 +349,6 @@ exists to correct. Grader canary: oracle ${llama.canary.oracle}%, inverted ${lla
 coinflip ${llama.canary.coinflip}% — it provably tells a perfect predictor from an inverted one.</p>
 ` : ''}
 
-<h2>Or browse the ${pools.pools.length} pools we track</h2>
-<table id="tbl"><thead><tr>
-  <th data-k="pair">Pool</th>
-  <th data-k="tvl">TVL</th>
-  <th data-k="adv">Advertised</th>
-  <th data-k="realApr" class="hide-s">Typical-range reality</th>
-  <th data-k="trustLabel">Trust</th>
-</tr></thead><tbody id="tb"></tbody></table>
 
 <details>
 <summary>Method, limits, and everything we got wrong on the way here</summary>
