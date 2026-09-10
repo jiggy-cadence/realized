@@ -52,6 +52,16 @@ const excludedVenues = Object.entries(pools.canaryByVenue).filter(([, c]) => !c.
 // Same payload the page embeds, plus a machine-readable README so an agent that fetches this
 // URL cold (no docs, no MCP) still knows what the fields mean and how to compute realized
 // return itself. This is the "useful for agents" half of the ask.
+// 2026-09-10, independent agent review (kimi-k3), acted on:
+//   - realizedAprPct/gapPts/misleading now precomputed server-side (build-pools.js) at
+//     the "moderate" range -- an agent screening for misleading pools no longer has to
+//     run the IL formula 261x itself, and can't drift from the /api/pool/{id} answer.
+//   - the formula moved OUT of a prose string repeated on every response and into a
+//     real, machine-checkable test vector below: one real pool, its actual inputs, and
+//     the actual output our own server produced for it. An agent can implement the
+//     formula (still documented in schema.formula, but as a reference, not the contract)
+//     and self-verify against testVector before trusting its own math on anything else.
+const worked = pools.pools.find((p) => p.realizedAprPct !== null) || pools.pools[0];
 const apiPayload = {
   ...pools,
   schema: {
@@ -64,12 +74,23 @@ const apiPayload = {
     fees: 'fee income over the window, percent of entry TVL',
     adv: 'advertised APR percent -- what the DEX UI shows: most recent day fees, annualized. Has no price term, cannot be negative.',
     days: 'window length in days',
+    realizedAprPct: 'precomputed realized return (fees + impermanent loss), annualized, at MODERATE (+/-2x) range. null if unmeasurable -- never a fabricated 0.',
+    gapPts: 'adv - realizedAprPct, at moderate range. Positive = advertised overstated reality.',
+    misleading: 'true if adv > 0 and realizedAprPct < 0, at moderate range. null if unmeasurable.',
   },
-  howToComputeRealizedReturn:
-    'realizedReturnPct = fees + impermanentLossPct(r, rangeWidthX). '
-    + 'IL closed form: let sa=sqrt(1/w), sb=sqrt(w); if r<=1/w: pos=(1/sa-1/sb)*r; '
-    + 'elif r>=w: pos=sb-sa; else: pos=2*sqrt(r)-sa-r/sb; hodl=(1-sa)+(1-1/sb)*r; '
-    + 'IL=(pos/hodl-1)*100. w=1e8 approximates full-range. realizedAprPct = realizedReturnPct/days*365.',
+  testVector: {
+    note: 'Real pool, real inputs, real output from THIS server at generation time. '
+      + 'Implement the formula, run it on these inputs, and check you get realizedAprPct '
+      + '(within float rounding) before trusting your own math on any other pool.',
+    input: { pair: worked.pair, r: worked.r, feesPct: worked.fees, advertisedAprPct: worked.adv, windowDays: worked.days, rangeWidthX: 2 },
+    expectedOutput: { realizedAprPct: worked.realizedAprPct, gapPts: worked.gapPts, misleading: worked.misleading },
+    formula:
+      'realizedReturnPct = fees + impermanentLossPct(r, rangeWidthX). '
+      + 'IL closed form: let sa=sqrt(1/w), sb=sqrt(w); if r<=1/w: pos=(1/sa-1/sb)*r; '
+      + 'elif r>=w: pos=sb-sa; else: pos=2*sqrt(r)-sa-r/sb; hodl=(1-sa)+(1-1/sb)*r; '
+      + 'IL=(pos/hodl-1)*100. w=rangeWidthX (2 for moderate; 1e8 approximates full-range). '
+      + 'realizedAprPct = realizedReturnPct/windowDays*365.',
+  },
   mcpServer: 'bin/mcp-server.js -- tools: find_pool, realized_return, audit_pools, explain_gap. '
     + 'find_pool(query) resolves a symbol like "WETH/USDC" to a poolId; no address needed.',
   moreEndpoints: { report: '/report.html', repo: 'https://github.com/jiggy-cadence/realized' },
@@ -491,29 +512,37 @@ async function pick(p){
 // drawn explicitly and labelled -- for THIS specific finding, "did the line
 // cross zero" is the entire question, more informative than the line's shape.
 function sparkSvg(series, days){
+  // series is [{date, realizedReturnPct}, ...] oldest->newest. Independent
+  // agent review (kimi-k3) correctly called bare-number arrays "chart data
+  // wearing an API costume" -- dates are now carried through so a human
+  // hover and an agent's own drawdown/trend calc both anchor to a real day,
+  // not an assumed index.
   if(!series || series.length < 3) return '';
   const w=560, h=64, pad=6;
-  const vals = series.filter(v=>v!==null);
+  const vals = series.map(p=>p.realizedReturnPct).filter(v=>v!==null);
   if(vals.length < 3) return '<div class="sub" style="margin:8px 0 0">Not enough daily data for a chart this window.</div>';
   const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
   const span = (hi - lo) || 1;
   const x = i => pad + (i/(series.length-1)) * (w-2*pad);
   const y = v => v===null ? null : h-pad - ((v-lo)/span) * (h-2*pad);
   const zeroY = y(0);
-  let path='', started=false;
-  series.forEach((v,i)=>{
-    const yy=y(v);
+  let path='', started=false, dots='';
+  series.forEach((pt,i)=>{
+    const yy=y(pt.realizedReturnPct);
     if(yy===null){ started=false; return; }
     path += (started?'L':'M')+x(i).toFixed(1)+','+yy.toFixed(1)+' ';
     started=true;
+    dots += \`<circle cx="\${x(i).toFixed(1)}" cy="\${yy.toFixed(1)}" r="6" fill="transparent"><title>\${pt.date||'?'}: \${pt.realizedReturnPct>=0?'+':''}\${pt.realizedReturnPct.toFixed(2)}%</title></circle>\`;
   });
   const endVal = vals.at(-1), endColor = endVal<0 ? '#e08a8a' : '#6fd89a';
+  const firstDate = series.find(p=>p.date)?.date, lastDate = [...series].reverse().find(p=>p.date)?.date;
   return \`<svg width="\${w}" height="\${h}" viewBox="0 0 \${w} \${h}" style="display:block;margin-top:10px">
     <line x1="\${pad}" y1="\${zeroY.toFixed(1)}" x2="\${w-pad}" y2="\${zeroY.toFixed(1)}" stroke="#3a4552" stroke-width="1" stroke-dasharray="3,3"/>
     <text x="\${w-pad}" y="\${(zeroY-4).toFixed(1)}" font-size="9" fill="#6b7684" text-anchor="end">0%</text>
     <path d="\${path}" fill="none" stroke="\${endColor}" stroke-width="1.6"/>
+    \${dots}
   </svg>
-  <div class="sub" style="margin-top:2px">cumulative realized return, day 1 → day \${days} (this window)</div>\`;
+  <div class="sub" style="margin-top:2px">cumulative realized return, \${firstDate||'day 1'} → \${lastDate||('day '+days)} (hover a point for the exact date)</div>\`;
 }
 
 function showCard(p){

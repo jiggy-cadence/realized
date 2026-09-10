@@ -59,6 +59,12 @@ async function main() {
 
       const live = scored.filter((s) => !s.stablePair && isLive(s, DEFAULT_LIVENESS));
       for (const s of live) {
+        // 2026-09-10: independent agent review (kimi-k3) correctly called out that this
+        // endpoint made agents run the IL formula 261x client-side for data we already
+        // computed server-side -- a real consistency hazard against /api/pool/{id}, which
+        // DOES ship realizedReturnPct/misleading. r/fees/adv stay for anyone who wants to
+        // recompute at a different range width; the moderate-range verdict is now free.
+        const mod = s.byRange?.moderate;
         out.push({
           id: s.pool,
           pair: s.pair,
@@ -70,6 +76,10 @@ async function main() {
           fees: Number(s.feeReturnPct.toFixed(4)), // fee return %, window
           adv: Number(s.advertisedAprPct.toFixed(3)),
           days: s.windowDays,
+          // precomputed at "moderate" (±2x) range -- matches the site's own default picker
+          realizedAprPct: mod?.measurable ? Number(mod.realizedAprPct.toFixed(3)) : null,
+          gapPts: mod?.measurable ? Number((s.advertisedAprPct - mod.realizedAprPct).toFixed(3)) : null,
+          misleading: mod?.measurable ? mod.misleading : null,
         });
       }
       console.log(`${live.length} live pools (canary worst |IL| ${worst.toExponential(1)}%)`);

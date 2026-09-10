@@ -136,17 +136,37 @@ const server = createServer(async (req, res) => {
     if (p === '/health') return json(res, 200, { ok: true, pools: POOLS.pools.length, generatedAt: POOLS.generatedAt });
 
     if (p === '/api/pools') {
+      // 2026-09-10: this schema/formula was a THIRD independent copy of the same contract
+      // (build-app.js's static api/pools.json had a second, richer one nothing actually
+      // served -- bin/api.js intercepts /api/pools before nginx ever reaches the static
+      // file). Caught by an agent review that correctly flagged the formula-as-prose
+      // problem; fixed here where it's actually live, with a real test vector instead of
+      // words, and the fields realizedAprPct/gapPts/misleading already precomputed on
+      // each pool object by build-pools.js -- so an agent should rarely need the formula
+      // at all except to double-check a different range width.
+      const worked = POOLS.pools.find((x) => x.realizedAprPct !== null) || POOLS.pools[0];
       return json(res, 200, {
         ...POOLS,
         schema: {
           pair: 'token0/token1 symbols', dex: 'uniswap-v3 | aerodrome', chain: 'mainnet | arbitrum | polygon | base',
           fee: 'pool fee tier, percent', tvl: 'current TVL, USD', r: 'price ratio over window (exit/entry)',
           fees: 'fee income over window, % of entry TVL', adv: 'advertised APR % (fees-only, cannot be negative)', days: 'window length',
+          realizedAprPct: 'precomputed realized return (fees + IL), annualized, at MODERATE (+/-2x) range. null if unmeasurable.',
+          gapPts: 'adv - realizedAprPct at moderate range. Positive = advertised overstated reality.',
+          misleading: 'true if adv > 0 and realizedAprPct < 0 at moderate range. null if unmeasurable.',
         },
-        howToComputeRealizedReturn:
-          'realizedReturnPct = fees + impermanentLossPct(r, rangeWidthX). IL closed form: let sa=sqrt(1/w), '
-          + 'sb=sqrt(w); if r<=1/w: pos=(1/sa-1/sb)*r; elif r>=w: pos=sb-sa; else: pos=2*sqrt(r)-sa-r/sb; '
-          + 'hodl=(1-sa)+(1-1/sb)*r; IL=(pos/hodl-1)*100. w=1e8 approximates full-range.',
+        testVector: {
+          note: 'Real pool, real inputs, real output from THIS server right now. Implement the '
+            + 'formula, run it on these inputs, check you get realizedAprPct before trusting your '
+            + 'own math on any other pool.',
+          input: { pair: worked.pair, r: worked.r, feesPct: worked.fees, advertisedAprPct: worked.adv, windowDays: worked.days, rangeWidthX: 2 },
+          expectedOutput: { realizedAprPct: worked.realizedAprPct, gapPts: worked.gapPts, misleading: worked.misleading },
+          formula:
+            'realizedReturnPct = fees + impermanentLossPct(r, rangeWidthX). IL closed form: let sa=sqrt(1/w), '
+            + 'sb=sqrt(w); if r<=1/w: pos=(1/sa-1/sb)*r; elif r>=w: pos=sb-sa; else: pos=2*sqrt(r)-sa-r/sb; '
+            + 'hodl=(1-sa)+(1-1/sb)*r; IL=(pos/hodl-1)*100. w=rangeWidthX (2 for moderate; 1e8 ~ full-range). '
+            + 'realizedAprPct = realizedReturnPct/windowDays*365.',
+        },
         liveEndpoints: { find: '/api/find?q=WETH/USDC', pool: '/api/pool/{poolId}?range=2', audit: '/api/audit?limit=250' },
       });
     }
