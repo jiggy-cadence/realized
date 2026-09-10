@@ -320,6 +320,41 @@ const server = createServer(async (req, res) => {
       return json(res, out.error ? 400 : 200, out);
     }
 
+    // The actionable question, answered honestly. NOT a prediction of which pool will pay
+    // best next month -- we tested that (spike-hunt3 found +1.64pp, then five walk-forward
+    // re-runs came back -0.11/+0.04/+0.26pp against a pre-registered >=0.5pp bar and all
+    // failed). This is TRACK RECORD: whose advertised number has actually matched reality.
+    if (p === '/api/rank') {
+      const top = Math.min(Number(url.searchParams.get('top') || 25), 200);
+      const trust = url.searchParams.get('trust') || '';       // filter by label
+      const sort = url.searchParams.get('sort') || 'realized'; // realized | gap | tvl
+      let rows = POOLS.pools.filter((x) => x.realizedAprPct !== null);
+      if (trust) rows = rows.filter((x) => x.trustLabel === trust);
+      const sorters = {
+        realized: (a, b) => b.realizedAprPct - a.realizedAprPct,
+        gap: (a, b) => (b.gapPts ?? -1e9) - (a.gapPts ?? -1e9),
+        tvl: (a, b) => b.tvl - a.tvl,
+      };
+      rows = [...rows].sort(sorters[sort] || sorters.realized).slice(0, top);
+      const all = POOLS.pools.filter((x) => x.realizedAprPct !== null);
+      const counts = all.reduce((acc, x) => { acc[x.trustLabel] = (acc[x.trustLabel] || 0) + 1; return acc; }, {});
+      return json(res, 200, {
+        generatedAt: POOLS.generatedAt,
+        question: 'Which advertised APRs have actually been trustworthy?',
+        notAPrediction: 'Track record over the measured window, not a forecast. We tested '
+          + 'predictive pool selection and it did not survive walk-forward validation.',
+        sort,
+        counts,
+        trustLabels: {
+          'historically honest': 'advertised tracked realized within 2 percentage points',
+          'gap-prone': 'real gap between advertised and realized, but the sign held',
+          'routinely misleading': 'advertised a positive APR while LPs actually went backwards',
+          unmeasurable: 'not enough data — reported as unmeasurable, never as zero',
+        },
+        pools: rows,
+      });
+    }
+
     if (p === '/api/venues') return json(res, 200, { venues: venueList(), cachedVenues: [...new Set(POOLS.pools.map((x) => `${x.dex}/${x.chain}`))] });
 
     // static passthrough for the human page + legacy report

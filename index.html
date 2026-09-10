@@ -147,6 +147,9 @@ td[class^="trust-"]{font-size:11.5px}
 .acard a{color:var(--acc);text-decoration:none}
 .acard a:hover{text-decoration:underline}
 .logo{width:22px;height:22px;border-radius:5px;vertical-align:-6px;margin-right:9px}
+.trust{margin-top:50px;padding-top:34px;border-top:1px solid var(--line)}
+.trust-note{margin-top:16px;font-size:12.5px;line-height:1.65;border-left:2px solid #2a3542;padding-left:13px}
+.trust-note code{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfd8e3;background:#0d131a;padding:1px 5px;border-radius:4px}
 .audit{margin-top:46px;padding-top:34px;border-top:1px solid var(--line)}
 .astat{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
 @media(max-width:680px){.astat{grid-template-columns:repeat(2,1fr)}}
@@ -424,6 +427,132 @@ generated 2026-09-09 21:35 UTC.</p>
   </div>
 </div>
 
+
+
+
+<div class="trust">
+  <h2>Which advertised APRs can you actually trust?</h2>
+  <p class="sub">This is the question a yield dashboard should answer and none of them do. We score
+  every pool on <strong>track record</strong>: how close its advertised APR has been to what LPs
+  really took home. Of <strong>256</strong> measurable pools:
+  <strong style="color:#6fd89a">33 historically honest</strong> ·
+  <strong style="color:#d8b45a">82 gap-prone</strong> ·
+  <strong style="color:#e08a8a">141 routinely misleading</strong>.</p>
+  <div class="leaderboards">
+    <div class="lb lb-good">
+      <h3>Historically honest — advertised matched reality</h3>
+      <table><thead><tr><th>pool</th><th class="hide-s">TVL</th><th>advertised</th><th>realized</th></tr></thead>
+      <tbody><tr>
+    <td>WETH/USDC</td>
+    <td class="hide-s">$175.3M</td>
+    <td>+7.01%</td>
+    <td><strong class="ok">+8.0%</strong></td>
+    
+  </tr><tr>
+    <td>USDC/SEI</td>
+    <td class="hide-s">$5.4M</td>
+    <td>+3.96%</td>
+    <td><strong class="ok">+5.5%</strong></td>
+    
+  </tr><tr>
+    <td>tBTC/WBTC</td>
+    <td class="hide-s">$4.5M</td>
+    <td>+0.63%</td>
+    <td><strong class="ok">+2.3%</strong></td>
+    
+  </tr><tr>
+    <td>tBTC/WETH</td>
+    <td class="hide-s">$0.9M</td>
+    <td>+0.34%</td>
+    <td><strong class="ok">+2.3%</strong></td>
+    
+  </tr><tr>
+    <td>WETH/INJ</td>
+    <td class="hide-s">$1.5M</td>
+    <td>+0.37%</td>
+    <td><strong class="ok">+2.1%</strong></td>
+    
+  </tr><tr>
+    <td>WETH/wstETH</td>
+    <td class="hide-s">$3.9M</td>
+    <td>+0.60%</td>
+    <td><strong class="ok">+2.0%</strong></td>
+    
+  </tr><tr>
+    <td>cbETH/WETH</td>
+    <td class="hide-s">$3.0M</td>
+    <td>+1.29%</td>
+    <td><strong class="ok">+1.9%</strong></td>
+    
+  </tr><tr>
+    <td>WETH/CMC20</td>
+    <td class="hide-s">$0.8M</td>
+    <td>+0.32%</td>
+    <td><strong class="ok">+1.8%</strong></td>
+    
+  </tr></tbody></table>
+    </div>
+    <div class="lb lb-bad">
+      <h3>Routinely misleading — advertised a profit, LPs lost money</h3>
+      <table><thead><tr><th>pool</th><th class="hide-s">TVL</th><th>advertised</th><th>realized</th><th>gap</th></tr></thead>
+      <tbody><tr>
+    <td>USDC/VELVET</td>
+    <td class="hide-s">$1.1M</td>
+    <td>+1.26%</td>
+    <td><strong class="bad">-988.8%</strong></td>
+    <td class="bad">+990.1pt</td>
+  </tr><tr>
+    <td>DRB/WETH</td>
+    <td class="hide-s">$0.3M</td>
+    <td>+12.46%</td>
+    <td><strong class="bad">-704.8%</strong></td>
+    <td class="bad">+717.3pt</td>
+  </tr><tr>
+    <td>DRB/WETH</td>
+    <td class="hide-s">$6.5M</td>
+    <td>+10.49%</td>
+    <td><strong class="bad">-666.3%</strong></td>
+    <td class="bad">+676.7pt</td>
+  </tr><tr>
+    <td>WETH/REI</td>
+    <td class="hide-s">$3.2M</td>
+    <td>+0.29%</td>
+    <td><strong class="bad">-382.7%</strong></td>
+    <td class="bad">+383.0pt</td>
+  </tr><tr>
+    <td>ARB/USDC</td>
+    <td class="hide-s">$4.5M</td>
+    <td>+0.27%</td>
+    <td><strong class="bad">-247.1%</strong></td>
+    <td class="bad">+247.4pt</td>
+  </tr><tr>
+    <td>USDC/VVV</td>
+    <td class="hide-s">$1.7M</td>
+    <td>+21.84%</td>
+    <td><strong class="bad">-221.6%</strong></td>
+    <td class="bad">+243.4pt</td>
+  </tr><tr>
+    <td>ARB/USDT</td>
+    <td class="hide-s">$0.7M</td>
+    <td>+0.96%</td>
+    <td><strong class="bad">-241.8%</strong></td>
+    <td class="bad">+242.8pt</td>
+  </tr><tr>
+    <td>FLOCK/USDC</td>
+    <td class="hide-s">$0.4M</td>
+    <td>+7.67%</td>
+    <td><strong class="bad">-228.3%</strong></td>
+    <td class="bad">+235.9pt</td>
+  </tr></tbody></table>
+    </div>
+  </div>
+  <p class="sub trust-note"><strong>This is a track record, not a forecast.</strong> We tested predictive
+  pool selection directly: one formation/holdout split showed a +1.64pt edge, then five walk-forward
+  re-runs with the same untuned scorer returned −0.11, +0.04 and +0.26pt against a pre-registered
+  ≥0.5pt bar — all five failed. So we don't sell a tip sheet. We publish which advertised numbers
+  have <em>historically</em> told the truth, and let you decide.
+  Agents: <code>GET /api/rank?trust=historically+honest</code> or the <code>rank_pools</code> MCP tool.</p>
+</div>
 
 
 <h2>Or browse the 256 pools we track</h2>

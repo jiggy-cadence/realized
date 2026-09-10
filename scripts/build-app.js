@@ -307,6 +307,9 @@ td[class^="trust-"]{font-size:11.5px}
 .acard a{color:var(--acc);text-decoration:none}
 .acard a:hover{text-decoration:underline}
 .logo{width:22px;height:22px;border-radius:5px;vertical-align:-6px;margin-right:9px}
+.trust{margin-top:50px;padding-top:34px;border-top:1px solid var(--line)}
+.trust-note{margin-top:16px;font-size:12.5px;line-height:1.65;border-left:2px solid #2a3542;padding-left:13px}
+.trust-note code{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfd8e3;background:#0d131a;padding:1px 5px;border-radius:4px}
 .audit{margin-top:46px;padding-top:34px;border-top:1px solid var(--line)}
 .astat{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
 @media(max-width:680px){.astat{grid-template-columns:repeat(2,1fr)}}
@@ -462,6 +465,62 @@ generated ${new Date(leaderboard.generatedAt).toISOString().slice(0, 16).replace
 </div>
 ` : ''}
 
+
+${(() => {
+  // The actionable answer, finally visible to humans. It lived only in the rank_pools MCP
+  // tool, which meant the single most useful thing we compute was invisible on our own site.
+  //
+  // IMPORTANT FRAMING, and the reason this is a track record and not a tip sheet: we DID test
+  // predictive pool selection (spike-hunt3 scored +1.64pp edge on one formation/holdout split,
+  // p=0). Five walk-forward re-runs with the scoring function deliberately untouched came back
+  // -0.11 / +0.04 / +0.26pp against a pre-registered >=0.5pp bar. All five failed. So we do not
+  // tell anyone which pool will pay best next month. We tell them whose advertised number has
+  // actually matched reality -- which is measurable, and which nobody else publishes.
+  const scored = pools.pools.filter((p) => p.realizedAprPct !== null);
+  if (!scored.length) return '';
+  const counts = scored.reduce((a, p) => { a[p.trustLabel] = (a[p.trustLabel] || 0) + 1; return a; }, {});
+  const honest = scored.filter((p) => p.trustLabel === 'historically honest')
+    .sort((a, b) => b.realizedAprPct - a.realizedAprPct).slice(0, 8);
+  const liars = scored.filter((p) => p.trustLabel === 'routinely misleading')
+    .sort((a, b) => (b.gapPts ?? 0) - (a.gapPts ?? 0)).slice(0, 8);
+  if (!honest.length && !liars.length) return '';
+  const row = (p, showGap) => `<tr>
+    <td>${p.pair}</td>
+    <td class="hide-s">$${(p.tvl / 1e6).toFixed(1)}M</td>
+    <td>${p.adv >= 0 ? '+' : ''}${p.adv.toFixed(2)}%</td>
+    <td><strong class="${p.realizedAprPct < 0 ? 'bad' : 'ok'}">${p.realizedAprPct >= 0 ? '+' : ''}${p.realizedAprPct.toFixed(1)}%</strong></td>
+    ${showGap ? `<td class="bad">${p.gapPts >= 0 ? '+' : ''}${p.gapPts.toFixed(1)}pt</td>` : ''}
+  </tr>`;
+  return `
+<div class="trust">
+  <h2>Which advertised APRs can you actually trust?</h2>
+  <p class="sub">This is the question a yield dashboard should answer and none of them do. We score
+  every pool on <strong>track record</strong>: how close its advertised APR has been to what LPs
+  really took home. Of <strong>${scored.length}</strong> measurable pools:
+  <strong style="color:#6fd89a">${counts['historically honest'] || 0} historically honest</strong> ·
+  <strong style="color:#d8b45a">${counts['gap-prone'] || 0} gap-prone</strong> ·
+  <strong style="color:#e08a8a">${counts['routinely misleading'] || 0} routinely misleading</strong>.</p>
+  <div class="leaderboards">
+    <div class="lb lb-good">
+      <h3>Historically honest — advertised matched reality</h3>
+      <table><thead><tr><th>pool</th><th class="hide-s">TVL</th><th>advertised</th><th>realized</th></tr></thead>
+      <tbody>${honest.map((p) => row(p, false)).join('')}</tbody></table>
+    </div>
+    <div class="lb lb-bad">
+      <h3>Routinely misleading — advertised a profit, LPs lost money</h3>
+      <table><thead><tr><th>pool</th><th class="hide-s">TVL</th><th>advertised</th><th>realized</th><th>gap</th></tr></thead>
+      <tbody>${liars.map((p) => row(p, true)).join('')}</tbody></table>
+    </div>
+  </div>
+  <p class="sub trust-note"><strong>This is a track record, not a forecast.</strong> We tested predictive
+  pool selection directly: one formation/holdout split showed a +1.64pt edge, then five walk-forward
+  re-runs with the same untuned scorer returned −0.11, +0.04 and +0.26pt against a pre-registered
+  ≥0.5pt bar — all five failed. So we don't sell a tip sheet. We publish which advertised numbers
+  have <em>historically</em> told the truth, and let you decide.
+  Agents: <code>GET /api/rank?trust=historically+honest</code> or the <code>rank_pools</code> MCP tool.</p>
+</div>
+`;
+})()}
 
 <h2>Or browse the ${pools.pools.length} pools we track</h2>
 <table id="tbl"><thead><tr>
