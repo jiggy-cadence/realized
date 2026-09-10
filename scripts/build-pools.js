@@ -80,6 +80,15 @@ async function main() {
           realizedAprPct: mod?.measurable ? Number(mod.realizedAprPct.toFixed(3)) : null,
           gapPts: mod?.measurable ? Number((s.advertisedAprPct - mod.realizedAprPct).toFixed(3)) : null,
           misleading: mod?.measurable ? mod.misleading : null,
+          // Plain-language trust label (Grok critique #5/Phase 3, 2026-09-10): agents and
+          // humans shouldn't need to interpret gapPts to get the verdict. Hard rules kept:
+          // unmeasurable is its own label, NEVER zero or a guess. Thresholds are stated,
+          // not hidden: honest = |gap| <= 2pts, misleading = advertised positive while
+          // realized negative, else "gap-prone" (real gap, sign intact).
+          trustLabel: !mod?.measurable ? 'unmeasurable'
+            : mod.misleading ? 'routinely misleading'
+            : Math.abs(s.advertisedAprPct - mod.realizedAprPct) <= 2 ? 'historically honest'
+            : 'gap-prone',
         });
       }
       console.log(`${live.length} live pools (canary worst |IL| ${worst.toExponential(1)}%)`);

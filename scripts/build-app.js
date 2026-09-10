@@ -189,6 +189,14 @@ details p,details li{color:#a9b4bf;font-size:13.5px;max-width:74ch}
 code{background:#1a212a;padding:2px 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .foot{margin-top:30px;color:var(--dim);font-size:12px}
 a{color:var(--acc)}
+.ribbon{margin-top:10px;font-size:12px;color:var(--dim)}
+.ribbon .chip{display:inline-block;padding:1px 8px;border-radius:10px;margin-right:6px;background:#12241c;color:#6fd89a;border:1px solid #1e3a2c}
+.ribbon .chip.fail{background:#2a1518;color:#e08a8a;border-color:#42222a}
+td[class^="trust-"]{font-size:11.5px}
+.trust-historically{color:#6fd89a}
+.trust-routinely{color:#e08a8a}
+.trust-gapprone{color:#d8b45a}
+.trust-unmeasurable{color:#5a6572}
 .leaderboards{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:14px}
 @media(max-width:680px){.leaderboards{grid-template-columns:1fr}}
 .lb h3{font-size:13px;margin:0 0 8px;letter-spacing:.02em}
@@ -207,6 +215,9 @@ a{color:var(--acc)}
   Median realized (fees + impermanent loss): <strong>${corpusHeadline.medianRealizedAprPct >= 0 ? '+' : ''}${corpusHeadline.medianRealizedAprPct.toFixed(1)}%</strong>.
   DEX-advertised APR has no price term — it can't show a loss no matter what happened to your money.
   Search a pool below and see what LPs actually took home.</p>
+  <div class="ribbon">Instrument status:
+  ${Object.entries(pools.canaryByVenue).map(([v, c]) => `<span class="chip${c.passed ? '' : ' fail'}">${v} ${c.passed ? '✓' : '✗ excluded'}</span>`).join('')}
+  each venue publishes only if its stable-pair canary shows ~0 impermanent loss (worst here: ${Math.max(...Object.values(pools.canaryByVenue).filter((c) => c.passed).map((c) => c.worstAbsIlPct)).toExponential(1)}%).</div>
   ` : `
   <h1>Your yield dashboard <em>can't</em> tell you that you lost money.</h1>
   <p class="sub">DEX-advertised APR is fee income annualized — it has no price term, so it's positive
@@ -337,6 +348,7 @@ coinflip ${llama.canary.coinflip}% — it provably tells a perfect predictor fro
   <th data-k="tvl">TVL</th>
   <th data-k="adv">Advertised</th>
   <th data-k="realApr" class="hide-s">Typical-range reality</th>
+  <th data-k="trustLabel">Trust</th>
 </tr></thead><tbody id="tb"></tbody></table>
 
 <details>
@@ -584,7 +596,13 @@ function paintCard(){
   if(!selected) return;
   document.querySelectorAll('.rbtn').forEach((b,i)=>b.classList.toggle('sel', i===rangeIdx));
   const r=RANGES[rangeIdx];
-  document.getElementById('rc').textContent = r.hint;
+  // Grok critique #1 (2026-09-10): fee term is held constant across ranges, but real
+  // concentrated positions earn MORE fees. So tight/moderate loss figures OVERSTATE the
+  // loss -- they are lower bounds on realized return, and the card must say so where the
+  // number appears, not just in the collapsed methodology section.
+  document.getElementById('rc').textContent = r.hint + (r.w < 1e6
+    ? '  ·  Loss shown is a lower bound: concentrated positions also earn extra fees we cannot yet attribute (fee uplift unmodeled).'
+    : '');
   const c=compute(selected, r.w);
   document.getElementById('vd').innerHTML = \`
     <div><b>\${f(selected.adv)}</b><span>advertised APR</span></div>
@@ -611,7 +629,8 @@ function renderTable(){
     <td>\${p.pair}<div style="color:#5a6572;font-size:11px;font-weight:400">\${p.dex} · \${p.chain}</div></td>
     <td>$\${(p.tvl/1e6).toFixed(1)}M</td>
     <td>\${f(p.adv)}</td>
-    <td class="hide-s \${p.realApr<0?'bad':'ok'}">\${f(p.realApr)}</td></tr>\`).join('');
+    <td class="hide-s \${p.realApr<0?'bad':'ok'}">\${f(p.realApr)}</td>
+    <td class="trust-\${(p.trustLabel||'unmeasurable').split(' ')[0].replace(/[^a-z]/g,'')}">\${p.trustLabel||'unmeasurable'}</td></tr>\`).join('');
   document.querySelectorAll('#tb tr').forEach(tr=>{
     tr.onclick=()=>{ const match=DATA.find(p=>p.id===tr.dataset.id); if(match) pick(match); };
   });
