@@ -43,6 +43,35 @@ const GATES = [
   { label: 'strict', gate: { minActiveDays: 28, minRecent7dVolumeUsd: 250_000, minTvlUsd: 1_000_000 } },
 ];
 
+// ---- TTL cache for LIVE Graph lookups -------------------------------------------------
+// /api/pools is served from the pre-built corpus and costs nothing. /api/pool/{id},
+// /api/find (live fallback) and /api/audit hit The Graph gateway on EVERY request against
+// a free-tier key. A judging panel or a demo link making repeat calls can exhaust that key
+// mid-evaluation, and the failure is the bad kind: the endpoint starts erroring while the
+// cached pages keep working, so the site looks alive but the live features are dead.
+//
+// Pool-day data only changes once per day, so a short TTL costs correctness nothing and
+// collapses N identical judge requests into one upstream call. Deliberately in-memory:
+// no dependency, no disk state to go stale across a deploy, and a restart is a clean slate.
+const TTL_MS = { pool: 10 * 60_000, find: 30 * 60_000, audit: 15 * 60_000 };
+const CACHE_MAX = 500;
+const cache = new Map(); // key -> { value, expires }
+let cacheHits = 0, cacheMisses = 0;
+
+async function cached(bucket, key, fn) {
+  const k = `${bucket}:${key}`;
+  const hit = cache.get(k);
+  if (hit && hit.expires > Date.now()) { cacheHits++; return hit.value; }
+  cacheMisses++;
+  const value = await fn();
+  // Never cache an error shape -- a transient gateway failure must not be pinned for
+  // 10 minutes, or one blip during judging becomes a persistent outage.
+  if (!value || value.error) return value;
+  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+  cache.set(k, { value, expires: Date.now() + (TTL_MS[bucket] ?? 600_000) });
+  return value;
+}
+
 const json = (res, code, obj) => {
   const body = JSON.stringify(obj, null, 2);
   res.writeHead(code, {
@@ -133,7 +162,22 @@ const server = createServer(async (req, res) => {
     if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' }); return res.end(); }
     if (req.method !== 'GET') return json(res, 405, { error: 'GET only' });
 
-    if (p === '/health') return json(res, 200, { ok: true, pools: POOLS.pools.length, generatedAt: POOLS.generatedAt });
+    if (p === '/health') {
+      return json(res, 200, {
+        ok: true,
+        pools: POOLS.pools.length,
+        generatedAt: POOLS.generatedAt,
+        // Surfaced so the cache is observable rather than a silent optimisation --
+        // if a demo starts failing, the first question is whether upstream is being hit.
+        cache: {
+          entries: cache.size,
+          hits: cacheHits,
+          misses: cacheMisses,
+          hitRatePct: cacheHits + cacheMisses ? Number(((cacheHits / (cacheHits + cacheMisses)) * 100).toFixed(1)) : null,
+          ttlSeconds: Object.fromEntries(Object.entries(TTL_MS).map(([k, v]) => [k, v / 1000])),
+        },
+      });
+    }
 
     if (p === '/api/pools') {
       // 2026-09-10: this schema/formula was a THIRD independent copy of the same contract
@@ -178,7 +222,7 @@ const server = createServer(async (req, res) => {
       let matches = cachedFind(q, limit);
       let source = 'cache';
       if (!matches.length && url.searchParams.get('live') !== '0') {
-        matches = await liveFind(q, limit);
+        matches = await cached('find', `${q.toUpperCase()}|${limit}`, () => liveFind(q, limit));
         source = 'live:uniswap-v3/mainnet';
       }
       return json(res, 200, {
@@ -193,7 +237,8 @@ const server = createServer(async (req, res) => {
       const days = Number(url.searchParams.get('days') || 30);
       const dex = url.searchParams.get('dex') || 'uniswap-v3';
       const chain = url.searchParams.get('chain') || 'mainnet';
-      const out = await livePool(poolId, { days, range }, dex, chain);
+      const out = await cached('pool', `${dex}|${chain}|${poolId.toLowerCase()}|${days}|${range ?? 'none'}`,
+        () => livePool(poolId, { days, range }, dex, chain));
       return json(res, out.error ? 404 : 200, out);
     }
 
@@ -202,7 +247,8 @@ const server = createServer(async (req, res) => {
       const days = Number(url.searchParams.get('days') || 30);
       const dex = url.searchParams.get('dex') || 'uniswap-v3';
       const chain = url.searchParams.get('chain') || 'mainnet';
-      const out = await liveAudit({ limit, days, dex, chain });
+      const out = await cached('audit', `${dex}|${chain}|${limit}|${days}`,
+        () => liveAudit({ limit, days, dex, chain }));
       return json(res, out.error ? 400 : 200, out);
     }
 
