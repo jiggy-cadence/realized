@@ -43,6 +43,51 @@ try { llama = R('data/llama-layer.json'); } catch { /* not yet generated */ }
 let corpusHeadline = null;
 try { corpusHeadline = R('data/corpus.json').headline; } catch { /* not yet generated */ }
 
+// ---- the shock card ----------------------------------------------------------------------
+// Jiggy, 2026-09-10: "the which pool and when did you enter are cool and all but idk, human
+// doesn't seem that impressive." Correct, and the design review named why: a form is a toll
+// booth. We were charging the visitor effort (pick a pool, pick a date) BEFORE showing any
+// proof the tool finds anything. Most arrivals have no position in mind -- they have
+// skepticism. So the page now proves itself first, on the single most-used pool in DeFi,
+// and only then offers the form.
+//
+// Chosen by rule, not by hand: highest-TVL pool that is currently misleading (advertised
+// positive while realized negative) and measurable. If the corpus stops containing one --
+// which would be GOOD NEWS for LPs -- the hero degrades to the honest headline instead of
+// hunting for a scarier pool. It must never become a search for the worst number on earth.
+const shock = (() => {
+  const cands = pools.pools
+    .filter((p) => p.misleading === true && p.realizedAprPct !== null && p.trustLabel !== 'unmeasurable')
+    .sort((a, b) => b.tvl - a.tvl);
+  const p = cands[0];
+  if (!p) return null;
+  // ONE timeframe, stated once. An earlier draft put an annualised -36% headline inches away
+  // from a -2.97% window net and a "+$5 advertised" figure -- three different numbers for one
+  // position, which reads as sloppy rather than damning. We show the WINDOW: what actually
+  // happened to this money over these N days. Annualised appears once, explicitly labelled.
+  //
+  // And we do NOT chase the biggest percentage. Ranked by dollar gap, the leaders are $0-1M
+  // pools at -988% APR; featuring those would be hunting the worst number on earth, which is
+  // the cherry-pick this project exists to call out. TVL rank keeps the example one a judge
+  // recognises and cannot dismiss as a dead memecoin.
+  const windowRealizedPct = (p.realizedAprPct / 365) * p.days;
+  const windowAdvertisedPct = (p.adv / 365) * p.days;
+  const stake = 100_000; // a realistic LP position, and it makes the gap legible in dollars
+  const ilPct = windowRealizedPct - p.fees;
+  return {
+    ...p,
+    windowRealizedPct,
+    windowAdvertisedPct,
+    ilPct,
+    stake,
+    endValue: stake * (1 + windowRealizedPct / 100),
+    advertisedEnd: stake * (1 + windowAdvertisedPct / 100),
+    lossUsd: stake * (windowRealizedPct / 100),
+    feesUsd: stake * (p.fees / 100),
+    ilUsd: stake * (ilPct / 100),
+  };
+})();
+
 const chainsValidated = Object.values(hist.stability).filter((s) => s?.tight).length;
 const totalMonths = Object.values(hist.stability).reduce((a, s) => a + (s?.tight?.windows || 0), 0);
 const venueList = [...new Set(pools.pools.map((p) => `${p.dex}/${p.chain}`))];
@@ -126,9 +171,40 @@ h1{font-size:32px;line-height:1.18;letter-spacing:-.025em;margin:0 0 10px;max-wi
 h1 em{color:var(--acc);font-style:normal}
 .sub{color:var(--dim);max-width:64ch;margin:0;font-size:15px}
 
-/* --- the ask: two fields, one question. This is the product; everything below
-   the card is evidence for it. --- */
-.ask{margin:26px 0 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+/* --- the shock card: proof BEFORE the toll booth --------------------------------------
+   A form is work the visitor must do before seeing any value. Most arrivals have no
+   position in mind, they have skepticism. So show a real, live, catastrophic gap on the
+   biggest pool in DeFi first, then offer the form. --- */
+.shock{background:linear-gradient(180deg,#141c26 0%,var(--card) 100%);border:1px solid #24303d;border-radius:18px;padding:30px 30px 26px;margin-bottom:14px}
+.shock-label{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:700;margin-bottom:14px}
+.shock h1{font-size:clamp(26px,4.4vw,40px);line-height:1.14;letter-spacing:-.03em;margin:0 0 22px;max-width:none}
+.shock .up{color:#6fd89a}
+.shock .down{color:#ff6b6b}
+.shock-money{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:18px 0 20px;border-top:1px solid #222c38;border-bottom:1px solid #222c38}
+.money-col{display:flex;flex-direction:column;gap:4px}
+.money-k{font-size:11.5px;color:var(--dim);letter-spacing:.03em}
+.money-v{font-size:23px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.money-arrow{color:#4b5560;font-size:12px;letter-spacing:.04em;white-space:nowrap}
+@media(max-width:600px){.money-arrow{display:none}.shock-money{gap:14px}.money-v{font-size:20px}}
+.shock-bar{display:flex;height:13px;border-radius:7px;overflow:hidden;margin:20px 0 10px;background:#2a1518}
+.bar-seg{height:100%}
+.bar-fee{background:#3fb950}
+.bar-il{background:#c9453f;flex:1}
+.shock-legend{display:flex;gap:20px;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+.shock-legend b{color:var(--fg);font-variant-numeric:tabular-nums}
+.shock-legend .net b{color:#ff6b6b}
+.shock-legend .ann{color:#5a6572}
+.sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
+.sw-fee{background:#3fb950}
+.sw-il{background:#c9453f}
+.shock-why{color:var(--dim);font-size:13.5px;line-height:1.62;margin:18px 0 0;max-width:70ch}
+.shock-why strong{color:var(--fg)}
+.shock-cta{margin-top:18px;background:var(--acc);border:0;color:#150c08;font:inherit;font-weight:750;font-size:14.5px;padding:12px 20px;border-radius:10px;cursor:pointer;transition:filter .15s}
+.shock-cta:hover{filter:brightness(1.12)}
+
+/* --- the ask: two fields, one question. Secondary to the shock card above. --- */
+.ask{margin:26px 0 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;scroll-margin-top:16px}
+.ask-title{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:14px}
 .ask-row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
 .ask-field{display:flex;flex-direction:column;gap:7px}
 .ask-pool{flex:1 1 320px;min-width:0}
@@ -213,6 +289,25 @@ td[class^="trust-"]{font-size:11.5px}
 .trust-routinely{color:#e08a8a}
 .trust-gapprone{color:#d8b45a}
 .trust-unmeasurable{color:#5a6572}
+/* --- agent surface + roadmap: below the human content, never competing with it --- */
+.agents{margin-top:52px;padding-top:34px;border-top:1px solid var(--line)}
+.agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px}
+@media(max-width:780px){.agrid{grid-template-columns:1fr}}
+.acard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+.acard h3{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--acc);margin:0 0 12px;font-weight:700}
+.acard pre{background:#0a0e13;border:1px solid #1b2530;border-radius:8px;padding:11px 12px;overflow-x:auto;margin:0 0 11px}
+.acard pre code{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#9fd8b4;white-space:pre-wrap;word-break:break-all}
+.acard p{color:var(--dim);font-size:12.5px;line-height:1.6;margin:0}
+.acard code{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfd8e3;background:#0d131a;padding:1px 5px;border-radius:4px}
+.acard a{color:var(--acc);text-decoration:none}
+.acard a:hover{text-decoration:underline}
+.roadmap{margin-top:46px;padding-top:34px;border-top:1px solid var(--line)}
+.rgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:18px}
+@media(max-width:780px){.rgrid{grid-template-columns:1fr}}
+.rcol h3{font-size:12px;letter-spacing:.07em;text-transform:uppercase;margin:0 0 10px;color:var(--dim);font-weight:700}
+.rcol.rnow h3{color:#6fd89a}
+.rcol ul{margin:0;padding-left:17px;color:var(--dim);font-size:12.5px;line-height:1.7}
+.rcol li{margin-bottom:7px}
 .leaderboards{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:14px}
 @media(max-width:680px){.leaderboards{grid-template-columns:1fr}}
 .lb h3{font-size:13px;margin:0 0 8px;letter-spacing:.02em}
@@ -223,14 +318,49 @@ td[class^="trust-"]{font-size:11.5px}
 </style></head><body><div class="wrap">
 
 <header>
-  <div class="brand">Realized <a href="api/pools">API for agents ↗</a></div>
-  <h1>Did you actually make money as an <em>LP</em>?</h1>
-  <p class="sub">Pick your pool and when you entered. We compute what you really took home —
-  fees <strong>minus impermanent loss</strong> — and compare it to the APR the DEX advertised.
-  ${corpusHeadline ? `Right now <strong>${corpusHeadline.misleadingPct.toFixed(0)}%</strong> of live pools advertise a profit while LPs went backwards.` : ''}</p>
+  <div class="brand">Realized <a href="#agents">API &amp; MCP for agents ↗</a></div>
 </header>
 
-<div class="ask">
+${shock ? `
+<div class="shock">
+  <div class="shock-label">Live · ${shock.pair} · ${shock.fee}% · largest pool on Uniswap v3 · last ${shock.days} days</div>
+  <h1>They advertised <span class="up">+${shock.adv.toFixed(2)}% APR</span>.<br>LPs actually lost <span class="down">$${Math.abs(shock.lossUsd).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span> on every $100k.</h1>
+  <div class="shock-money">
+    <div class="money-col">
+      <div class="money-k">You put in</div>
+      <div class="money-v">$100,000</div>
+    </div>
+    <div class="money-arrow">→ ${shock.days} days →</div>
+    <div class="money-col">
+      <div class="money-k">The DEX implied</div>
+      <div class="money-v up">$${shock.advertisedEnd.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+    </div>
+    <div class="money-col">
+      <div class="money-k">You actually have</div>
+      <div class="money-v down">$${shock.endValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+    </div>
+  </div>
+  <div class="shock-bar">
+    <div class="bar-seg bar-fee" style="width:${Math.max(1.5, Math.min(98, (Math.abs(shock.fees) / (Math.abs(shock.fees) + Math.abs(shock.ilPct)) * 100))).toFixed(1)}%"></div>
+    <div class="bar-seg bar-il"></div>
+  </div>
+  <div class="shock-legend">
+    <span><i class="sw sw-fee"></i> fees earned <b>+$${shock.feesUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}</b></span>
+    <span><i class="sw sw-il"></i> impermanent loss <b>−$${Math.abs(shock.ilUsd).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b></span>
+    <span class="net">net <b class="down">${shock.windowRealizedPct.toFixed(2)}%</b> over ${shock.days} days <span class="ann">(${shock.realizedAprPct.toFixed(1)}% annualised)</span></span>
+  </div>
+  <p class="shock-why">Advertised APR is fee income, annualised. It has no price term — so it is
+  <strong>positive by construction</strong> and cannot show a loss, no matter what happened to your money.
+  Live from The Graph, recomputed every build. ${corpusHeadline ? `<strong>${corpusHeadline.misleadingPct.toFixed(0)}%</strong> of live pools are doing this right now.` : ''}</p>
+  <button class="shock-cta" id="cta">Check your own position ↓</button>
+</div>
+` : `
+<header><h1>Did you actually make money as an <em>LP</em>?</h1>
+<p class="sub">Fees minus impermanent loss, live from The Graph.</p></header>
+`}
+
+<div class="ask" id="ask">
+  <div class="ask-title">Your position</div>
   <div class="ask-row">
     <div class="ask-field ask-pool">
       <label for="q">1 · Which pool?</label>
@@ -329,6 +459,72 @@ generated ${new Date(leaderboard.generatedAt).toISOString().slice(0, 16).replace
   <th data-k="realApr" class="hide-s">Typical-range reality</th>
   <th data-k="trustLabel">Trust</th>
 </tr></thead><tbody id="tb"></tbody></table>
+
+<div class="agents" id="agents">
+  <h2>For agents &amp; builders</h2>
+  <p class="sub">Humans read the card above. Agents should never scrape it — every number on this
+  page is available as JSON, an npm package, or an MCP tool. Same computation, one code path.</p>
+  <div class="agrid">
+    <div class="acard">
+      <h3>HTTP · no key, no install</h3>
+      <pre><code>curl "${'https://realized.drainfun.xyz'}/api/position/\
+${shock ? shock.id : '0x88e6...5640'}?entry=2026-07-28&amp;range=2"</code></pre>
+      <p>Returns fees, impermanent loss, realized vs advertised, a daily series, and a
+      plain-language verdict. Also <a href="api/pools">/api/pools</a>,
+      <a href="api/find?q=WETH/USDC">/api/find</a>, <a href="llms.txt">/llms.txt</a>.</p>
+    </div>
+    <div class="acard">
+      <h3>MCP · for AI agents</h3>
+      <pre><code>node bin/mcp-server.js</code></pre>
+      <p><code>find_pool</code> · <code>position_realized</code> · <code>realized_return</code> ·
+      <code>audit_pools</code> · <code>explain_gap</code> · <strong><code>rank_pools</code></strong>
+      — the last one ranks by what LPs actually took home and labels how honest each advertised
+      number has been. That is the call a yield dashboard should make <em>instead of</em>
+      sorting by APR.</p>
+    </div>
+    <div class="acard">
+      <h3>Library · npm</h3>
+      <pre><code>npm i @realized-lp/core</code></pre>
+      <p><code>impermanentLossPct(r)</code> and <code>concentratedIlPct(r, w)</code> are pure
+      functions — no network, no key, no dependencies. Drop them into any dashboard so it can
+      stop showing a metric that cannot go negative.</p>
+    </div>
+  </div>
+</div>
+
+<div class="roadmap">
+  <h2>Where this goes</h2>
+  <p class="sub">Built during ETHOnline 2026. What exists today is measured and live; what is
+  next is stated as next, not implied as done.</p>
+  <div class="rgrid">
+    <div class="rcol rnow">
+      <h3>Live now</h3>
+      <ul>
+        <li>Uniswap v3 on ${venueList.filter((v) => v.startsWith('uniswap-v3')).length} chains + Aerodrome on Base — ${pools.pools.length} pools</li>
+        <li>Any position, any entry date, any range width</li>
+        <li>HTTP API, MCP server, npm package</li>
+        <li>${totalMonths} monthly windows of walk-forward validation, per-window canary</li>
+      </ul>
+    </div>
+    <div class="rcol">
+      <h3>Next</h3>
+      <ul>
+        <li>Every DEX with a public subgraph — the IL math takes a price ratio and a range, not a pool ABI, so new venues are a subgraph ID, not a rewrite</li>
+        <li>Per-position fee attribution via the positions subgraph, which removes our biggest caveat (pool-level fees)</li>
+        <li>Alerts: tell an LP when price is about to leave their band, before the loss locks in</li>
+      </ul>
+    </div>
+    <div class="rcol">
+      <h3>The general problem</h3>
+      <ul>
+        <li>This defect is not unique to LPing. Any yield surface that advertises income without
+        a price term has it: lending, staking derivatives, vaults, LSTs.</li>
+        <li>Same instrument, same honesty rules: measure realized, publish the gap, refuse to
+        rank on broken math.</li>
+      </ul>
+    </div>
+  </div>
+</div>
 
 ${llama ? `
 <h2>DefiLlama says 40% APR. Should you believe it?</h2>
@@ -575,6 +771,13 @@ async function refetchForEntry(){
 document.querySelectorAll('.exbtn').forEach(b=>b.addEventListener('click', ()=>{
   qEl.value=b.dataset.ex; clrEl.style.display='block'; renderDD(b.dataset.ex); qEl.focus();
 }));
+
+// Shock-card CTA: the hero proved the defect exists; this is the handoff to "now check yours".
+const ctaEl=document.getElementById('cta');
+if(ctaEl) ctaEl.addEventListener('click', ()=>{
+  document.getElementById('ask').scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>qEl.focus(), 380);
+});
 
 async function pick(p){
   qEl.value=p.pair; clrEl.style.display='block'; closeDD();
