@@ -9,7 +9,7 @@
  * Run offline (pure math): node test/canary.test.js
  * Run with live data too:  GRAPH_API_KEY=xxx node test/canary.test.js --live
  */
-import { impermanentLossPct, scorePool, summarize, gatewayUrl, fetchTopPools, priceCollapsed, isLive, pearson, spearman } from '../lib/realized.js';
+import { impermanentLossPct, scorePool, summarize, gatewayUrl, fetchTopPools, fetchPoolFrom, positionRealized, priceCollapsed, isLive, pearson, spearman } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
 
 let failed = 0;
@@ -117,6 +117,53 @@ console.log('\n--- summarize() refuses to certify without a stable-pair canary -
   check('canary.passed is false when no stable pair is present', noStables.canary.passed ? 1 : 0, 0, 0);
 }
 
+console.log('\n--- positionRealized: hand-verified against a fabricated position (Grok critique #4/Phase 2) ---');
+{
+  // Fabricated 10-day position, ascending order (fetchPoolFrom's native order), a price
+  // move from 100 -> 150 (r=1.5), $50 total fees on $1M entry TVL.
+  const fabricated = {
+    id: '0xfab', feeTier: '3000', token0: { symbol: 'FOO' }, token1: { symbol: 'BAR' },
+    poolDayData: Array.from({ length: 10 }, (_, i) => ({
+      date: i * 86400, feesUSD: '5', volumeUSD: '80000', tvlUSD: '1000000', // date in seconds, one real day apart
+      token0Price: String(100 + i * (50 / 9)), // linear 100 -> 150 over 10 days
+    })),
+  };
+  const pos = positionRealized(fabricated, 2); // moderate range, w=2
+  // Hand computation, independent of lib/concentrated.js's own code path:
+  const r = 150 / 100, w = 2;
+  const sa = Math.sqrt(1 / w), sb = Math.sqrt(w);
+  const posVal = (r >= 1 / w && r <= w) ? 2 * Math.sqrt(r) - sa - r / sb : (r < 1 / w ? (1 / sa - 1 / sb) * r : sb - sa);
+  const hodl = (1 - sa) + (1 - 1 / sb) * r;
+  const handIl = (posVal / hodl - 1) * 100;
+  const handFees = (50 / 1_000_000) * 100; // $50 fees / $1M entry TVL, as a %
+  const handRealized = handFees + handIl;
+  check('positionRealized is measurable', pos.measurable ? 1 : 0, 1, 0);
+  check('positionRealized.impermanentLossPct matches independent hand calc', pos.impermanentLossPct, handIl, 1e-6);
+  check('positionRealized.realizedReturnPct matches independent hand calc', pos.realizedReturnPct, handRealized, 1e-6);
+  check('positionRealized.daysHeld', pos.daysHeld, 10, 0);
+  check('positionRealized.entryDate is the FIRST day (ascending), not the last', pos.entryDate !== pos.latestDate ? 0 : 1, 0, 0);
+}
+{
+  // Fewer than 2 days: must refuse, not fabricate a number from one data point.
+  const tooShort = { id: '0x1', feeTier: '3000', token0: { symbol: 'A' }, token1: { symbol: 'B' },
+    poolDayData: [{ date: 1, feesUSD: '5', tvlUSD: '1000000', token0Price: '100', volumeUSD: '1' }] };
+  check('positionRealized refuses a 1-day window instead of dividing by nothing',
+    positionRealized(tooShort, 2).measurable ? 1 : 0, 0, 0);
+}
+{
+  // Price left the range entirely -> must flag outOfRange and say the loss is realized.
+  const rangeExit = {
+    id: '0x1', feeTier: '3000', token0: { symbol: 'A' }, token1: { symbol: 'B' },
+    poolDayData: Array.from({ length: 5 }, (_, i) => ({
+      date: i, feesUSD: '1', volumeUSD: '1000', tvlUSD: '1000000',
+      token0Price: String(100 * Math.pow(3, i / 4)), // ends at 3x entry, range w=2 -> out
+    })),
+  };
+  const pos = positionRealized(rangeExit, 2);
+  check('positionRealized flags outOfRange when price left the band', pos.outOfRange ? 1 : 0, 1, 0);
+  check('positionRealized carries an outOfRangeNote when out of range', pos.outOfRangeNote === null ? 1 : 0, 0, 0);
+}
+
 if (process.argv.includes('--live')) {
   console.log('\n--- LIVE: real pools from The Graph ---');
   const url = gatewayUrl(process.env.GRAPH_API_KEY);
@@ -128,6 +175,15 @@ if (process.argv.includes('--live')) {
   console.log(`  misleading: ${s.misleadingCount}/${s.counts.liveVolatile} (${s.misleadingPct?.toFixed(0)}%)`);
   check('live canary passes', s.canary.passed ? 0 : 1, 0, 0);
   check('live sample produced measurable pools', s.counts.liveVolatile > 10 ? 0 : 1, 0, 0);
+
+  console.log('\n--- LIVE: positionRealized against a real 45-day-old entry ---');
+  const entryTs = Math.floor(Date.now() / 1000) - 45 * 86400;
+  const livePool = await fetchPoolFrom(url, '0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640', entryTs);
+  const livePos = positionRealized(livePool, 2);
+  console.log(`  ${livePos.pair} entered ${livePos.entryDate}: fees ${livePos.feeReturnPct?.toFixed(3)}%  IL ${livePos.impermanentLossPct?.toFixed(3)}%  realized ${livePos.realizedReturnPct?.toFixed(3)}%`);
+  check('live position is measurable', livePos.measurable ? 1 : 0, 1, 0);
+  check('live position daysHeld is close to the requested window',
+    Math.abs(livePos.daysHeld - 45) <= 1 ? 1 : 0, 1, 0);
 }
 
 console.log(`\n${failed ? `${failed} FAILED` : 'ALL PASS'}`);

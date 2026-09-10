@@ -19,7 +19,7 @@ the number that can: `realized = fees + impermanent loss`.
 ## Quick start (no install, no API key)
 
 ```bash
-curl -s https://drainfun.xyz/api/pools.json
+curl -s https://realized.drainfun.xyz/api/pools
 ```
 
 202 live pools across 4 validated venues. The response embeds its own `schema` and the exact
@@ -72,9 +72,30 @@ git clone https://github.com/jiggy-cadence/realized && cd realized && npm instal
 | tool | use |
 |---|---|
 | `find_pool(query)` | **start here** — resolve `"WETH/USDC"` or `"PEPE"` to ranked poolIds. You never need to know an address. |
-| `realized_return(poolId, days?, rangeWidthX?)` | fees vs IL vs advertised for one pool |
+| `realized_return(poolId, days?, rangeWidthX?)` | fees vs IL vs advertised for one pool over a recent window |
+| `position_realized(poolId, entryDate, rangeWidthX?)` | **what YOU actually made** on a position entered on a *specific date*, however long ago — not "the last 30 days," but "since I actually put money in." See below. |
 | `explain_gap(poolId)` | plain-language verdict + the evidence chain that produced it |
 | `audit_pools(limit?)` | corpus-wide sweep: how many pools advertise a profit LPs didn't get |
+
+### `position_realized` — the one question every real LP actually has
+
+`realized_return` answers "what does the average LP get in this pool right now."
+`position_realized` answers "I put money into this exact pool on this exact date at this exact
+range — what have I actually made since." Anchors to a real calendar date, not a fixed lookback:
+
+```json
+{ "poolId": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640", "entryDate": "2026-07-28", "rangeWidthX": 2 }
+```
+
+Returns fees earned, impermanent loss, realized return, whether price ever left your band (if
+so the loss is **locked in**, not impermanent), and a day-by-day series so you can see exactly
+when the position turned. Refuses to answer (`measurable: false`) rather than guess if fewer
+than 2 days have passed since entry — there is nothing to measure yet, and 0% is not the honest
+answer to "not enough data."
+
+Same math as everywhere else in this project (`lib/concentrated.js`'s own IL formula, not a
+separate implementation) — hand-verified in `test/canary.test.js` against an independent,
+from-scratch calculation, plus a live check against a real 45-day-old position.
 
 ## Reporting rules (these matter more than the numbers)
 
@@ -96,7 +117,7 @@ git clone https://github.com/jiggy-cadence/realized && cd realized && npm instal
 110 independent (non-overlapping) 30-day windows across 4 chains, plus the same instrument run
 unchanged on Aerodrome Slipstream — different team, codebase, incentive model — showing the same
 defect with the same shape. Venues whose stable pairs can't prove ~0 IL are **excluded, not
-reported as clean**. Full tables: <https://drainfun.xyz/realized.html>
+reported as clean**. Full tables: <https://realized.drainfun.xyz/report.html>
 
 Data: The Graph. Per-day `feesUSD` are indexer-derived aggregates that exist nowhere on-chain —
 there is no RPC path to this dataset.

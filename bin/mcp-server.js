@@ -11,7 +11,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  gatewayUrl, fetchPool, fetchTopPools, scorePool, summarize, sensitivity, DEFAULT_LIVENESS,
+  gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, summarize, sensitivity, DEFAULT_LIVENESS,
 } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange, RANGES } from '../lib/concentrated.js';
 
@@ -56,6 +56,30 @@ const TOOLS = [
         },
       },
       required: ['poolId'],
+    },
+  },
+  {
+    name: 'position_realized',
+    description:
+      'What YOU actually made on a SPECIFIC position: this pool, entered on this date, at this '
+      + 'concentrated range. Different from realized_return, which reports the average LP outcome '
+      + 'over a fixed recent window -- this anchors to an actual entry date, however long ago, and '
+      + 'is the tool to use when someone says "I put money into this pool on <date>, what have I '
+      + 'made since." Returns measurable:false rather than a fake number if fewer than 2 days of '
+      + 'data exist since entry.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        poolId: { type: 'string', description: 'Uniswap v3 pool address (0x...)' },
+        entryDate: { type: 'string', description: 'ISO date (YYYY-MM-DD) or unix timestamp (seconds) you entered the position' },
+        rangeWidthX: {
+          type: 'number',
+          description: 'Your concentrated range as a half-width factor: 1.25 tight, 2 typical, 4 wide, '
+            + '1e8 or omit for full-range. If price left this band the loss is realized, not impermanent.',
+          default: 2,
+        },
+      },
+      required: ['poolId', 'entryDate'],
     },
   },
   {
@@ -142,6 +166,29 @@ async function realizedReturn({ poolId, days = 30, rangeWidthX }) {
   };
 }
 
+async function positionRealizedTool({ poolId, entryDate, rangeWidthX = 2 }) {
+  if (!poolId) return { error: 'poolId is required' };
+  if (!entryDate) return { error: 'entryDate is required, e.g. "2026-08-01" or a unix timestamp' };
+  let ts;
+  if (/^\d+$/.test(String(entryDate))) {
+    ts = Number(entryDate);
+  } else {
+    const d = new Date(entryDate);
+    if (Number.isNaN(d.getTime())) return { error: `could not parse entryDate "${entryDate}" as an ISO date or unix timestamp` };
+    ts = Math.floor(d.getTime() / 1000);
+  }
+  const pool = await fetchPoolFrom(URL(), poolId, ts);
+  if (!pool) return { error: `pool ${poolId} not found in the Uniswap v3 subgraph` };
+  const pos = positionRealized(pool, rangeWidthX);
+  if (!pos.measurable) return pos;
+  return {
+    ...pos,
+    verdict: pos.outOfRange
+      ? `Price left your +/-${rangeWidthX}x range: realized ${pos.realizedAprPct.toFixed(1)}% annualized, and this loss is LOCKED IN, not impermanent.`
+      : `In-range the whole time: realized ${pos.realizedAprPct.toFixed(1)}% annualized (fees ${pos.feeReturnPct.toFixed(2)}% + IL ${pos.impermanentLossPct.toFixed(2)}%).`,
+  };
+}
+
 async function auditPools({ limit = 250, days = 30 }) {
   const pools = await fetchTopPools(URL(), { first: limit, days });
   const scored = pools.map(scorePool);
@@ -186,6 +233,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
     if (name === 'find_pool') return ok(await findPool(args));
     if (name === 'realized_return') return ok(await realizedReturn(args));
+    if (name === 'position_realized') return ok(await positionRealizedTool(args));
     if (name === 'audit_pools') return ok(await auditPools(args));
     if (name === 'explain_gap') return ok(await explainGap(args));
     return ok({ error: `unknown tool ${name}` });
