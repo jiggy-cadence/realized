@@ -1,11 +1,91 @@
 # REALIZED
 
-**Advertised LP APR is positive by construction. It cannot tell you that you lost money.
-On live Uniswap v3 data, 34–62% of pools advertised a positive APR while liquidity providers
-actually went backwards — and the number rises the tighter your range.**
+> **TL;DR** — Every DEX shows liquidity providers an APR made only of fees, so it can never
+> display a loss. Realized computes the number that can: **fees + impermanent loss**, from The
+> Graph's historical `poolDayData`. Live site: **[realized.drainfun.xyz](https://realized.drainfun.xyz)**
+> · npm: `@realized-lp/core` · MCP server: `bin/mcp-server.js`
 
-Measured on live Uniswap v3 data via The Graph, regenerated end-to-end by
-[`scripts/build-corpus.js`](scripts/build-corpus.js) into [`data/corpus.json`](data/corpus.json).
+**The problem.** You provide liquidity, the dashboard says +12% APR, and months later your
+position is worth less than if you had done nothing. The dashboard was not lying about fees —
+it simply has no term for price. Advertised APR is fee income annualized, so it is *positive by
+construction*.
+
+**The solution.** Realized adds the missing term. Give it a pool and an entry date; it returns
+what an LP actually took home, next to what was advertised, with the gap named.
+
+**Why it's credible.** Every number is recomputed live from The Graph and regenerable end-to-end
+by [`scripts/build-corpus.js`](scripts/build-corpus.js). On live Uniswap v3 data, **34–62% of
+pools advertised a positive APR while LPs went backwards** — and the share rises the tighter
+your range.
+
+### A real position
+
+```
+USDC/WETH · entered 2026-07-28 · held 45 days · ±2x range
+
+  advertised APR      +2.58%   ← what the DEX showed
+  fees earned         +0.48%
+  impermanent loss    -2.57%
+  ------------------------------
+  realized           -16.95% annualized   ← what you actually made
+```
+
+In range the entire time. No liquidation, no exotic pair. The advertised number was not
+wrong about fees; it was structurally incapable of showing the loss.
+
+Those figures are live, so they move as the window slides. Reproduce them yourself:
+
+```bash
+curl "https://realized.drainfun.xyz/api/position/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640?entry=2026-07-28&range=2"
+```
+
+### Who this is for
+
+| you are | you get |
+|---|---|
+| **an LP** | the real number for a position you already hold, at your entry date and range |
+| **a dashboard / protocol team** | an API + npm package so your UI can stop showing a metric that cannot go negative |
+| **an AI agent** | an MCP server whose tools answer "did this pool actually pay?" instead of reciting APR |
+
+### Use it in 30 seconds
+
+```bash
+# 1. Ask the live API (no key, no install)
+curl "https://realized.drainfun.xyz/api/position/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640?entry=2026-07-28&range=2"
+
+# 2. Or in code
+npm i @realized-lp/core
+```
+
+```js
+import { gatewayUrl, fetchPoolFrom, positionRealized } from '@realized-lp/core';
+const pool = await fetchPoolFrom(gatewayUrl(process.env.GRAPH_API_KEY), poolId, entryTs);
+positionRealized(pool, 2).realizedReturnPct;   // the number your dashboard can't show
+```
+
+```jsonc
+// 3. Or as an MCP server, for agents
+{ "mcpServers": { "realized": { "command": "node", "args": ["bin/mcp-server.js"],
+  "env": { "GRAPH_API_KEY": "..." } } } }
+// tools: find_pool, realized_return, position_realized, audit_pools, explain_gap
+```
+
+### What we do NOT claim
+
+The narrow claim is the strong one, and it is the only one we make:
+
+- **We do not claim "LPs lose to HODL."** Sometimes they do, often they don't. Not our finding.
+- **We claim the advertised metric is systematically uninformative** about realized outcomes
+  for concentrated positions — and we measure it live rather than asserting it.
+- **Fee uplift for concentrated ranges is not modelled.** Tighter positions earn more fees than
+  we credit them, so tight-range losses shown here are **lower bounds**. The direction is
+  robust; treat tight-range magnitudes as bounded, not exact.
+- **Fees are pool-level, not per-position.** We cannot see your individual liquidity share, so
+  this is what a representative LP at that range earned, not your exact wallet.
+- **IL is computed closed-form** from entry/exit price ratio, not by replaying every rebalance.
+
+Full limitations, sensitivity across gates, and a retracted claim we killed ourselves are in
+[Honesty](#honesty-what-we-checked-and-what-we-retracted) below.
 
 ---
 

@@ -11,7 +11,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, summarize, sensitivity, DEFAULT_LIVENESS,
+  gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, summarize, sensitivity, isLive, DEFAULT_LIVENESS,
 } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange, RANGES } from '../lib/concentrated.js';
 
@@ -103,6 +103,30 @@ const TOOLS = [
       type: 'object',
       properties: { poolId: { type: 'string' }, days: { type: 'number', default: 30 } },
       required: ['poolId'],
+    },
+  },
+  {
+    name: 'rank_pools',
+    description:
+      'THE ACTIONABLE ONE. Rank live pools by what LPs actually took home (fees + impermanent loss), '
+      + 'not by advertised APR, and label how trustworthy each advertised number has been. '
+      + 'This is what a yield dashboard or an allocating agent should call INSTEAD of sorting by APR. '
+      + 'Each pool carries a trustLabel: "historically honest" (advertised tracked reality within 2pts), '
+      + '"gap-prone" (real gap, sign intact), "routinely misleading" (advertised positive while LPs lost money), '
+      + 'or "unmeasurable" (never a fabricated zero). Sort by realized return, or screen out the liars.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'How many pools to consider (default 250)', default: 250 },
+        top: { type: 'number', description: 'How many ranked results to return (default 10)', default: 10 },
+        days: { type: 'number', description: 'Window length in days', default: 30 },
+        rangeWidthX: { type: 'number', description: 'Position range width; 2 = a typical managed +/-2x band', default: 2 },
+        excludeMisleading: {
+          type: 'boolean',
+          description: 'Drop pools whose advertised APR is currently positive while realized is negative',
+          default: false,
+        },
+      },
     },
   },
 ];
@@ -242,6 +266,93 @@ async function explainGap({ poolId, days = 30 }) {
   };
 }
 
+// Say what the sample ACTUALLY shows, including when it shows nothing. An earlier version of
+// this always printed "sorting by APR puts X first, sorting by realized puts Y first" -- which
+// on a sample where X === Y rendered as a punchline with no joke: a null result wearing the
+// costume of evidence. If the naive ranking and the honest one agree at the top, say so, and
+// carry the disagreement that does exist (the worst gap) instead of manufacturing one.
+function soWhatLine(naiveTop, realTop, ranked) {
+  if (!naiveTop || !realTop) return 'No measurable live pools in this sample.';
+  const worst = [...ranked].sort((a, b) => b.gapPts - a.gapPts)[0];
+  const liars = ranked.filter((r) => r.misleading).length;
+  if (naiveTop.pair !== realTop.pair) {
+    return `Sorting by advertised APR puts ${naiveTop.pair} first (${naiveTop.advertisedAprPct}% advertised, `
+      + `but ${naiveTop.realizedAprPct}% realized). Sorting by what LPs actually took home puts `
+      + `${realTop.pair} first (${realTop.realizedAprPct}% realized). Rank on realized, screen on trustLabel.`;
+  }
+  return `Both rankings agree at the top here (${realTop.pair}, ${realTop.realizedAprPct}% realized) — `
+    + `advertised APR is not wrong about every pool, and this tool does not pretend otherwise. `
+    + `The damage is below the top: ${liars} of ${ranked.length} live pools advertise a positive APR `
+    + `while LPs went backwards`
+    + (worst ? `, worst gap ${worst.pair} at ${worst.gapPts}pts (${worst.advertisedAprPct}% advertised vs ${worst.realizedAprPct}% realized)` : '')
+    + '. Rank on realized, screen on trustLabel.';
+}
+
+// The correction, not just the diagnosis. Every other tool here tells you a number is wrong;
+// this one tells you what to use instead. A dashboard or allocating agent calls this in place
+// of "sort pools by APR descending", which is the exact behaviour that loses people money.
+async function rankPools({ limit = 250, top = 10, days = 30, rangeWidthX = 2, excludeMisleading = false }) {
+  const pools = await fetchTopPools(URL(), { first: limit, days });
+  const scored = pools.map(scorePool);
+  const s = summarize(scored);
+  // Same discipline as the site: if stable/stable pairs don't show ~0 IL the instrument is
+  // broken, and a ranking built on a broken instrument is worse than no ranking at all.
+  if (!s.canary.passed) {
+    return { error: 'CANARY FAILED — the IL instrument is not trustworthy right now, so no ranking is returned.', canary: s.canary };
+  }
+
+  const ranked = [];
+  for (const p of scored) {
+    if (!p.measurable || !isLive(p)) continue;
+    const il = concentratedIlPct(p.priceRatio, rangeWidthX);
+    if (il === null) continue;
+    const realizedPct = p.feeReturnPct + il;
+    const realizedAprPct = (realizedPct / p.windowDays) * 365;
+    const gapPts = p.advertisedAprPct - realizedAprPct;
+    const misleading = p.advertisedAprPct > 0 && realizedAprPct < 0;
+    // Thresholds stated, not hidden. "unmeasurable" is never silently a zero.
+    const trustLabel = misleading ? 'routinely misleading'
+      : Math.abs(gapPts) <= 2 ? 'historically honest'
+        : 'gap-prone';
+    if (excludeMisleading && misleading) continue;
+    ranked.push({
+      poolId: p.pool,
+      pair: p.pair,
+      tvlUsd: Math.round(p.currentTvlUsd),
+      advertisedAprPct: Number(p.advertisedAprPct.toFixed(2)),
+      realizedAprPct: Number(realizedAprPct.toFixed(2)),
+      gapPts: Number(gapPts.toFixed(2)),
+      impermanentLossPct: Number(il.toFixed(2)),
+      outOfRange: outOfRange(p.priceRatio, rangeWidthX),
+      misleading,
+      trustLabel,
+    });
+  }
+
+  ranked.sort((a, b) => b.realizedAprPct - a.realizedAprPct);
+  const byApr = [...ranked].sort((a, b) => b.advertisedAprPct - a.advertisedAprPct);
+  // The whole argument in one comparison: what you'd have picked vs what actually paid.
+  const naiveTop = byApr[0];
+  const realTop = ranked[0];
+
+  return {
+    rangeWidthX,
+    windowDays: days,
+    considered: ranked.length,
+    canary: s.canary,
+    ranking: ranked.slice(0, top),
+    worstOffenders: [...ranked].sort((a, b) => b.gapPts - a.gapPts).slice(0, Math.min(5, top)),
+    counts: {
+      historicallyHonest: ranked.filter((r) => r.trustLabel === 'historically honest').length,
+      gapProne: ranked.filter((r) => r.trustLabel === 'gap-prone').length,
+      routinelyMisleading: ranked.filter((r) => r.trustLabel === 'routinely misleading').length,
+    },
+    soWhat: soWhatLine(naiveTop, realTop, ranked),
+    note: 'Fee uplift for concentrated ranges is not modelled, so tight-range realized figures are LOWER BOUNDS. '
+      + 'Ordering is robust; treat magnitudes as bounded.',
+  };
+}
+
 const server = new Server({ name: 'realized-lp-mcp', version: '0.1.0' }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
@@ -252,6 +363,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (name === 'position_realized') return ok(await positionRealizedTool(args));
     if (name === 'audit_pools') return ok(await auditPools(args));
     if (name === 'explain_gap') return ok(await explainGap(args));
+    if (name === 'rank_pools') return ok(await rankPools(args));
     return ok({ error: `unknown tool ${name}` });
   } catch (e) {
     return ok({ error: safeError(e) });
