@@ -97,6 +97,18 @@ Same math as everywhere else in this project (`lib/concentrated.js`'s own IL for
 separate implementation) — hand-verified in `test/canary.test.js` against an independent,
 from-scratch calculation, plus a live check against a real 45-day-old position.
 
+Also available over plain HTTP (no MCP client, no API key — we proxy our own Graph key):
+
+```bash
+curl -s "https://realized.drainfun.xyz/api/position/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640?entry=2026-07-01&range=2"
+```
+
+`entry` accepts an ISO date or a unix timestamp; `range` is the band width (omit for ±2×, use a
+huge value for full range). Errors are explicit and never fabricated: a future `entry`, an
+unparseable date, an unknown pool, and a window too short to measure each return a stated reason
+rather than a number. The same call backs the date picker on the web UI — one implementation of
+the math, three transports (MCP, HTTP, browser).
+
 ## Reporting rules (these matter more than the numbers)
 
 1. **Always state the range.** The same pool can be honest full-range and misleading at ±1.25×.

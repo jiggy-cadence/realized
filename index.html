@@ -50,6 +50,13 @@ h1 em{color:var(--acc);font-style:normal}
 .rbtn.sel{border-color:var(--acc);background:rgba(224,122,95,.1);color:var(--fg)}
 .rbtn small{display:block;font-weight:400;color:var(--dim);font-size:11px;margin-top:2px}
 .rangecap{color:var(--dim);font-size:12.5px;margin:8px 0 0}
+.posbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0 0;padding-top:16px;border-top:1px solid var(--line)}
+.posbar label{color:var(--dim);font-size:12.5px;font-weight:600}
+.posbar input[type=date]{background:#0e141b;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:8px 11px;font-size:13px;font-family:inherit;color-scheme:dark}
+.posbtn{background:var(--acc);border:1px solid var(--acc);color:#08131f;border-radius:8px;padding:8px 15px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:700}
+.posbtn:disabled{opacity:.5;cursor:default}
+.posclear{background:#0e141b;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:8px 13px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600}
+.posmode{background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.3);color:#9ecbff;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;letter-spacing:.02em}
 
 .verdict{display:flex;gap:28px;flex-wrap:wrap;margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
 .verdict div b{display:block;font-size:29px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.15}
@@ -531,6 +538,35 @@ document.addEventListener('click', (e)=>{ if(!e.target.closest('.searchwrap')) c
 function closeDD(){ ddEl.classList.remove('open'); }
 
 let selected=null, rangeIdx=2; // default: "Typical" ±2x
+// position: null = pool-level view (the site's original "last N days" question).
+// Set = the LP's ACTUAL question: "I entered on THIS date at THIS range, what have I made?"
+// Held separately from `selected` so switching pools or ranges can invalidate it explicitly
+// rather than leaving a stale position number sitting under a different pool's header.
+let position=null, posLoading=false;
+
+function defaultEntryDate(){ const d=new Date(); d.setDate(d.getDate()-90); return d.toISOString().slice(0,10); }
+
+// Fetches from OUR server, which calls the same fetchPoolFrom+positionRealized pair the MCP
+// tool calls. Deliberately NOT recomputed in-browser like the pool-level card: the position
+// math is date-anchored to real entry-day price/TVL that the browser does not have, and a
+// second in-browser implementation is exactly how two numbers silently drift apart.
+async function loadPosition(){
+  if(!selected || posLoading) return;
+  const entry=document.getElementById('entry').value;
+  if(!entry) return;
+  posLoading=true;
+  const btn=document.getElementById('posgo');
+  btn.disabled=true; btn.textContent='Reading The Graph…';
+  try{
+    const u='/api/position/'+encodeURIComponent(selected.id)+'?entry='+encodeURIComponent(entry)
+      +'&range='+RANGES[rangeIdx].w+'&dex='+(selected.dex||'uniswap-v3')+'&chain='+(selected.chain||'mainnet');
+    const r=await fetch(u);
+    const d=await r.json();
+    position = (d.error||d.measurable===false) ? {failed:true, reason:d.error||d.reason} : d;
+  }catch(e){ position={failed:true, reason:'network error'}; }
+  posLoading=false;
+  paintCard();
+}
 
 async function pick(p){
   qEl.value=p.pair; clrEl.style.display='block'; closeDD();
@@ -616,8 +652,18 @@ function showCard(p){
     <div class="verdict" id="vd"></div>
     <div id="cal"></div>
     <div id="spark">${sparkSvg(p.series, p.days)}</div>
+    <div class="posbar">
+      <label for="entry">I entered this pool on</label>
+      <input type="date" id="entry" max="${new Date().toISOString().slice(0,10)}" value="${defaultEntryDate()}">
+      <button class="posbtn" id="posgo">What have I actually made?</button>
+      <button class="posclear" id="posclr" style="display:none">← back to ${p.days}-day view</button>
+    </div>
+    <div class="rangecap" id="poshint">Switches this card from the pool's recent window to <b>your</b> position: fees earned since your entry date, minus IL priced from your entry price, at the range you picked above.</div>
   </div>`;
   document.getElementById('back').onclick=()=>{ qEl.value=''; clrEl.style.display='none'; showCard(null); selected=null; };
+  document.getElementById('posgo').onclick=loadPosition;
+  document.getElementById('posclr').onclick=()=>{ position=null; paintCard(); };
+  document.getElementById('entry').onchange=()=>{ if(position){ position=null; paintCard(); } };
   document.getElementById('rp').innerHTML = RANGES.map((r,i)=>`<button class="rbtn" data-i="${i}">${r.label}<small>${r.hint.split(' — ')[0]}</small></button>`).join('');
   document.querySelectorAll('.rbtn').forEach(b=>b.onclick=()=>{ rangeIdx=+b.dataset.i; paintCard(); });
   paintCard();
@@ -627,6 +673,15 @@ function paintCard(){
   if(!selected) return;
   document.querySelectorAll('.rbtn').forEach((b,i)=>b.classList.toggle('sel', i===rangeIdx));
   const r=RANGES[rangeIdx];
+  const goBtn=document.getElementById('posgo'), clrBtn=document.getElementById('posclr');
+  if(goBtn){ goBtn.disabled=false; goBtn.textContent = position ? 'Recalculate' : 'What have I actually made?'; }
+  if(clrBtn) clrBtn.style.display = position ? 'inline-block' : 'none';
+
+  if(position && !position.failed){ paintPosition(r); return; }
+  if(position && position.failed){
+    document.getElementById('cal').innerHTML='<div class="callout warn"><b>Could not measure that position:</b> '
+      +String(position.reason||'unknown').replace(/</g,'')+'</div>';
+  }
   // Grok critique #1 (2026-09-10): fee term is held constant across ranges, but real
   // concentrated positions earn MORE fees. So tight/moderate loss figures OVERSTATE the
   // loss -- they are lower bounds on realized return, and the card must say so where the
@@ -649,6 +704,32 @@ function paintCard(){
   } else {
     cal.innerHTML = '';
   }
+}
+
+// The position view. Same card, different question -- every number here comes from the
+// server's positionRealized(), never recomputed locally.
+function paintPosition(r){
+  const p=position;
+  document.getElementById('rc').innerHTML = `<span class="posmode">YOUR POSITION</span> &nbsp;entered ${p.entryDate} · held ${p.daysHeld} days · ±${p.rangeWidthX>=1e6?'full range':p.rangeWidthX+'×'} band`
+    + (p.rangeWidthX < 1e6 ? '  ·  Loss shown is a lower bound: concentrated positions also earn extra fees we cannot yet attribute.' : '');
+  document.getElementById('vd').innerHTML = `
+    <div><b class="${p.realizedReturnPct<0?'bad':'ok'}">${f(p.realizedReturnPct,2)}</b><span>your realized return over ${p.daysHeld} days</span></div>
+    <div><b class="${p.realizedAprPct<0?'bad':'ok'}">${f(p.realizedAprPct)}</b><span>annualized</span></div>
+    <div><b>${f(p.feeReturnPct,2)}</b><span>fees earned</span></div>
+    <div><b>${f(p.impermanentLossPct,2)}</b><span>impermanent loss</span></div>`;
+  const cal=document.getElementById('cal');
+  if(p.outOfRange){
+    // Server's outOfRangeNote already opens with "Price left this range during the position" --
+    // don't prefix a second sentence saying the same thing. Bolding the lead clause instead.
+    cal.innerHTML='<div class="callout warn"><b>Price left your band during this position — this loss is REALIZED, not impermanent.</b> '
+      +'Staying in range would have required active rebalancing this instrument does not model.</div>';
+  } else if(selected.adv>0 && p.realizedAprPct<0){
+    cal.innerHTML='<div class="callout warn"><b>This pool advertised '+f(selected.adv)+' APR while you actually lost money.</b> '
+      +'Fees of '+f(p.feeReturnPct,2)+' did not cover '+f(p.impermanentLossPct,2)+' of impermanent loss over your '+p.daysHeld+' days.</div>';
+  } else {
+    cal.innerHTML='<div class="callout fine">'+String(p.verdict||'').replace(/</g,'')+'</div>';
+  }
+  document.getElementById('spark').innerHTML = sparkSvg(p.dailySeries, p.daysHeld);
 }
 
 // ---------- browse table ----------

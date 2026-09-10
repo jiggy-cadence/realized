@@ -13,6 +13,7 @@
  *   GET  /api/pools                      cached corpus, same shape as data/pools.json
  *   GET  /api/find?q=WETH/USDC           live lookup by symbol, ranked by TVL
  *   GET  /api/pool/:id?range=2&days=30   live realized_return for one pool
+ *   GET  /api/position/:id?entry=...     live position_realized: YOUR entry date + YOUR range
  *   GET  /api/audit?limit=250            live corpus-wide sweep + canary
  *   GET  /                               the search UI (index.html)
  *   GET  /report.html, /llms.txt         static passthrough
@@ -25,7 +26,7 @@ import { readFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import {
-  gatewayUrl, fetchPool, fetchTopPools, scorePool, summarize, sensitivity, DEFAULT_LIVENESS,
+  gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, summarize, sensitivity, DEFAULT_LIVENESS,
 } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
 import { VENUES, subgraphId, venueList } from '../lib/venues.js';
@@ -145,6 +146,42 @@ async function livePool(poolId, { days = 30, range } = {}, dex = 'uniswap-v3', c
   };
 }
 
+/**
+ * livePosition — the HTTP twin of the MCP `position_realized` tool.
+ *
+ * Deliberately calls the SAME fetchPoolFrom + positionRealized pair the MCP server calls,
+ * rather than re-deriving anything here: one implementation of the math, three transports
+ * (MCP, HTTP, UI). If this ever disagrees with the MCP tool, that is a bug, not a variant.
+ */
+async function livePosition(poolId, { entry, range = 2 } = {}, dex = 'uniswap-v3', chain = 'mainnet') {
+  const id = subgraphId(dex, chain);
+  if (!id) return { error: `unknown venue ${dex}/${chain}` };
+  if (!entry) return { error: 'entry is required, e.g. ?entry=2026-08-01 (ISO date or unix timestamp)' };
+
+  let ts;
+  if (/^\d+$/.test(String(entry))) {
+    ts = Number(entry);
+  } else {
+    const d = new Date(entry);
+    if (Number.isNaN(d.getTime())) return { error: `could not parse entry "${entry}" as an ISO date or unix timestamp` };
+    ts = Math.floor(d.getTime() / 1000);
+  }
+  // A future entry date yields an empty series, which positionRealized would report as
+  // "need at least 2 days" -- true but confusing. Name the real cause instead.
+  if (ts > Math.floor(Date.now() / 1000)) return { error: 'entry date is in the future' };
+
+  const pool = await fetchPoolFrom(gatewayUrl(API_KEY, id), poolId, ts);
+  if (!pool) return { error: `pool ${poolId} not found on ${dex}/${chain}` };
+  const pos = positionRealized(pool, range);
+  if (!pos.measurable) return pos;
+  return {
+    ...pos,
+    verdict: pos.outOfRange
+      ? `Price left your +/-${range}x range: realized ${pos.realizedAprPct.toFixed(1)}% annualized, and this loss is LOCKED IN, not impermanent.`
+      : `In-range the whole time: realized ${pos.realizedAprPct.toFixed(1)}% annualized (fees ${pos.feeReturnPct.toFixed(2)}% + IL ${pos.impermanentLossPct.toFixed(2)}%).`,
+  };
+}
+
 async function liveAudit({ limit = 250, days = 30, dex = 'uniswap-v3', chain = 'mainnet' } = {}) {
   const id = subgraphId(dex, chain);
   if (!id) return { error: `unknown venue ${dex}/${chain}` };
@@ -242,6 +279,17 @@ const server = createServer(async (req, res) => {
       return json(res, out.error ? 404 : 200, out);
     }
 
+    if (p.startsWith('/api/position/')) {
+      const poolId = decodeURIComponent(p.slice('/api/position/'.length));
+      const entry = url.searchParams.get('entry') || '';
+      const range = Number(url.searchParams.get('range') || 2);
+      const dex = url.searchParams.get('dex') || 'uniswap-v3';
+      const chain = url.searchParams.get('chain') || 'mainnet';
+      const out = await cached('pool', `pos|${dex}|${chain}|${poolId.toLowerCase()}|${entry}|${range}`,
+        () => livePosition(poolId, { entry, range }, dex, chain));
+      return json(res, out.error ? 400 : 200, out);
+    }
+
     if (p === '/api/audit') {
       const limit = Number(url.searchParams.get('limit') || 250);
       const days = Number(url.searchParams.get('days') || 30);
@@ -259,7 +307,7 @@ const server = createServer(async (req, res) => {
     const file = staticMap[p];
     if (file && existsSync(join(ROOT, file))) return serveFile(res, join(ROOT, file));
 
-    return json(res, 404, { error: 'not found', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/audit', '/api/venues'] });
+    return json(res, 404, { error: 'not found', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/position/{id}?entry=2026-08-01', '/api/audit', '/api/venues'] });
   } catch (e) {
     return json(res, 500, { error: String(e.message || e) });
   }
