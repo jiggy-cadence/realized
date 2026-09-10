@@ -358,7 +358,7 @@ const server = createServer(async (req, res) => {
     if (p === '/api/venues') return json(res, 200, { venues: venueList(), cachedVenues: [...new Set(POOLS.pools.map((x) => `${x.dex}/${x.chain}`))] });
 
     // static passthrough for the human page + legacy report
-    const staticMap = { '/': 'index.html', '/index.html': 'index.html', '/report.html': 'report.html', '/llms.txt': 'llms.txt', '/skill.md': 'SKILL.md', '/SKILL.md': 'SKILL.md' };
+    const staticMap = { '/': 'index.html', '/index.html': 'index.html', '/deck': 'deck.html', '/deck.html': 'deck.html', '/report.html': 'report.html', '/llms.txt': 'llms.txt', '/skill.md': 'SKILL.md', '/SKILL.md': 'SKILL.md' };
     const file = staticMap[p];
     if (file && existsSync(join(ROOT, file))) return serveFile(res, join(ROOT, file));
 
