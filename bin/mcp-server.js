@@ -113,7 +113,23 @@ const GATES = [
   { label: 'strict (>=28d, $250k 7d vol, $1M TVL)', gate: { minActiveDays: 28, minRecent7dVolumeUsd: 250_000, minTvlUsd: 1_000_000 } },
 ];
 
-const ok = (obj) => ({ content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] });
+const ok = (obj) => {
+  // An error is not a successful tool call. MCP clients branch on isError; without it
+  // a failure renders as a green result whose text happens to say "error", and the model
+  // on the other end has no way to tell the difference.
+  const payload = { content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] };
+  if (obj && typeof obj === 'object' && obj.error) payload.isError = true;
+  return payload;
+};
+
+// Never hand a raw exception string to a caller: fetch() failures can carry the
+// request URL, and our gateway URL embeds the Graph API key.
+const safeError = (e) => {
+  const raw = String((e && e.message) || e);
+  const key = process.env.GRAPH_API_KEY;
+  const scrubbed = key ? raw.split(key).join('<redacted>') : raw;
+  return scrubbed.replace(/gateway\.thegraph\.com\/api\/[^/\s]+/g, 'gateway.thegraph.com/api/<redacted>');
+};
 
 async function findPool({ query: q, limit = 5 }) {
   if (!q || !q.trim()) return { error: 'query is required, e.g. "WETH/USDC" or "PEPE"' };
@@ -238,7 +254,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (name === 'explain_gap') return ok(await explainGap(args));
     return ok({ error: `unknown tool ${name}` });
   } catch (e) {
-    return ok({ error: String(e.message || e) });
+    return ok({ error: safeError(e) });
   }
 });
 
