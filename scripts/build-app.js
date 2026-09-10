@@ -126,8 +126,24 @@ h1{font-size:32px;line-height:1.18;letter-spacing:-.025em;margin:0 0 10px;max-wi
 h1 em{color:var(--acc);font-style:normal}
 .sub{color:var(--dim);max-width:64ch;margin:0;font-size:15px}
 
+/* --- the ask: two fields, one question. This is the product; everything below
+   the card is evidence for it. --- */
+.ask{margin:26px 0 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+.ask-row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.ask-field{display:flex;flex-direction:column;gap:7px}
+.ask-pool{flex:1 1 320px;min-width:0}
+.ask-when{flex:0 0 190px}
+@media(max-width:620px){.ask-when{flex:1 1 100%}}
+.ask-field label{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:700}
+#entry{background:#0d131a;border:1.5px solid var(--line);border-radius:12px;color:var(--fg);font:inherit;font-size:15px;padding:14px 14px;outline:0;width:100%;color-scheme:dark;transition:border-color .15s}
+#entry:focus{border-color:var(--acc)}
+.ask-hint{color:#5a6572;font-size:11.5px}
+.ask-examples{margin-top:14px;color:var(--dim);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.exbtn{background:#1a212a;border:1px solid var(--line);color:var(--fg);border-radius:999px;padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer;transition:border-color .15s,color .15s}
+.exbtn:hover{border-color:var(--acc);color:var(--acc)}
+
 /* --- search-first: this is the primary control, not the range slider --- */
-.searchwrap{position:relative;margin:28px 0 0}
+.searchwrap{position:relative;margin:0}
 .searchbox{display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:4px 4px 4px 16px;transition:border-color .15s}
 .searchbox:focus-within{border-color:var(--acc)}
 .searchbox svg{flex:none;opacity:.5}
@@ -208,27 +224,36 @@ td[class^="trust-"]{font-size:11.5px}
 
 <header>
   <div class="brand">Realized <a href="api/pools">API for agents ↗</a></div>
-  ${corpusHeadline ? `
-  <h1>${corpusHeadline.misleadingPct.toFixed(0)}% of live pools advertise a profit
-  while LPs actually lost money.</h1>
-  <p class="sub">Median advertised APR right now: <strong>+${corpusHeadline.medianAdvertisedAprPct.toFixed(1)}%</strong>.
-  Median realized (fees + impermanent loss): <strong>${corpusHeadline.medianRealizedAprPct >= 0 ? '+' : ''}${corpusHeadline.medianRealizedAprPct.toFixed(1)}%</strong>.
-  DEX-advertised APR has no price term — it can't show a loss no matter what happened to your money.
-  Search a pool below and see what LPs actually took home.</p>
-  ` : `
-  <h1>Your yield dashboard <em>can't</em> tell you that you lost money.</h1>
-  <p class="sub">DEX-advertised APR is fee income annualized — it has no price term, so it's positive
-  no matter what actually happened to your money. Search a pool and see what LPs really took home.</p>
-  `}
+  <h1>Did you actually make money as an <em>LP</em>?</h1>
+  <p class="sub">Pick your pool and when you entered. We compute what you really took home —
+  fees <strong>minus impermanent loss</strong> — and compare it to the APR the DEX advertised.
+  ${corpusHeadline ? `Right now <strong>${corpusHeadline.misleadingPct.toFixed(0)}%</strong> of live pools advertise a profit while LPs went backwards.` : ''}</p>
 </header>
 
-<div class="searchwrap">
-  <div class="searchbox">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-    <input id="q" type="text" placeholder="Search a pool — try WETH, USDC, PEPE…" autocomplete="off">
-    <button class="clr" id="clr">✕</button>
+<div class="ask">
+  <div class="ask-row">
+    <div class="ask-field ask-pool">
+      <label for="q">1 · Which pool?</label>
+      <div class="searchwrap">
+        <div class="searchbox">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="q" type="text" placeholder="Try WETH, USDC, PEPE…" autocomplete="off">
+          <button class="clr" id="clr">✕</button>
+        </div>
+        <div class="dropdown" id="dd"></div>
+      </div>
+    </div>
+    <div class="ask-field ask-when">
+      <label for="entry">2 · When did you enter?</label>
+      <input id="entry" type="date" max="${new Date().toISOString().slice(0, 10)}">
+      <div class="ask-hint" id="entryhint">Defaults to 30 days ago</div>
+    </div>
   </div>
-  <div class="dropdown" id="dd"></div>
+  <div class="ask-examples">No position in mind? Try
+    <button class="exbtn" data-ex="WETH/USDC">WETH/USDC</button>
+    <button class="exbtn" data-ex="WBTC/WETH">WBTC/WETH</button>
+    <button class="exbtn" data-ex="PEPE">PEPE/WETH</button>
+  </div>
 </div>
 
 <div id="card"></div>
@@ -499,6 +524,57 @@ document.addEventListener('click', (e)=>{ if(!e.target.closest('.searchwrap')) c
 function closeDD(){ ddEl.classList.remove('open'); }
 
 let selected=null, rangeIdx=2; // default: "Typical" ±2x
+
+// --- entry date: the second half of the actual question -----------------------------------
+// "What did I make" is unanswerable without "since when". Default to 30 days so the page
+// answers something immediately, but a real position has a real entry date and the whole
+// point of position_realized is that we honour it.
+const entryEl=document.getElementById('entry'), entryHintEl=document.getElementById('entryhint');
+const iso=(d)=>d.toISOString().slice(0,10);
+const DEFAULT_DAYS=30;
+entryEl.value = iso(new Date(Date.now()-DEFAULT_DAYS*864e5));
+function entryTs(){
+  if(!entryEl.value) return null;
+  const ms=Date.parse(entryEl.value+'T00:00:00Z');
+  return Number.isFinite(ms) ? Math.floor(ms/1000) : null;
+}
+function daysSinceEntry(){
+  const ts=entryTs();
+  if(!ts) return DEFAULT_DAYS;
+  return Math.max(1, Math.round((Date.now()/1000 - ts)/86400));
+}
+function paintEntryHint(){
+  const d=daysSinceEntry();
+  entryHintEl.textContent = entryEl.value ? d+' days held' : 'Defaults to 30 days ago';
+}
+entryEl.addEventListener('change', ()=>{ paintEntryHint(); if(selected) refetchForEntry(); });
+paintEntryHint();
+
+// Re-run the measurement against the chosen entry date. This is the same computation the
+// position_realized MCP tool performs -- the page is a client of its own API, not a
+// separate implementation that can drift.
+async function refetchForEntry(){
+  if(!selected) return;
+  const ts=entryTs();
+  const base={pair:selected.pair, dex:selected.dex, chain:selected.chain, fee:selected.fee, tvl:selected.tvl};
+  showCard({...base, loading:true});
+  try{
+    const u='/api/position/'+encodeURIComponent(selected.id)
+      +'?dex='+selected.dex+'&chain='+selected.chain
+      +(ts?'&entry='+entryEl.value:'')
+      +'&range='+RANGES[rangeIdx].w;
+    const r=await fetch(u);
+    const full=await r.json();
+    if(full.error || full.measurable===false){ showCard({...base, unmeasurable:true, reason: full.error||full.reason}); return; }
+    selected={...selected, r:full.priceRatio, fees:full.feeReturnPct, adv:full.advertisedAprPct, days:full.windowDays ?? full.daysHeld, series:full.dailySeries||selected.series};
+    showCard(selected);
+  }catch{ showCard({...base, unmeasurable:true, reason:'network error'}); }
+}
+
+// Example chips: let someone with no position in mind see the product work in one click.
+document.querySelectorAll('.exbtn').forEach(b=>b.addEventListener('click', ()=>{
+  qEl.value=b.dataset.ex; clrEl.style.display='block'; renderDD(b.dataset.ex); qEl.focus();
+}));
 
 async function pick(p){
   qEl.value=p.pair; clrEl.style.display='block'; closeDD();
