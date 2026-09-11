@@ -3,7 +3,7 @@
 > **TL;DR** — Every DEX shows liquidity providers an APR made only of fees, so it can never
 > display a loss. Realized computes the number that can: **fees + impermanent loss**, from The
 > Graph's historical `poolDayData`. Live site: **[realized.drainfun.xyz](https://realized.drainfun.xyz)**
-> · npm: `@realized-lp/core` · MCP server: `bin/mcp-server.js`
+> · library: `packages/core` · MCP server: `bin/mcp-server.js` (7 tools)
 
 **The problem.** You provide liquidity, the dashboard says +12% APR, and months later your
 position is worth less than if you had done nothing. The dashboard was not lying about fees —
@@ -56,22 +56,47 @@ curl "https://realized.drainfun.xyz/api/position/0x88e6a0c2ddd26feeb64f039a2c412
 # 1b. Don't know your range? Read it off-chain from your address (read-only, no signing)
 curl "https://realized.drainfun.xyz/api/wallet/0xYourAddress"
 
-# 2. Or in code
-npm i @realized-lp/core
+# 2. Or in code — the math is a standalone package in this repo
+git clone https://github.com/jiggy-cadence/realized && cd realized && npm install
 ```
 
 ```js
-import { gatewayUrl, fetchPoolFrom, positionRealized } from '@realized-lp/core';
+// packages/core is self-contained: no build step, no bundler, plain ESM.
+import { gatewayUrl, fetchPoolFrom, positionRealized } from './packages/core/src/index.js';
 const pool = await fetchPoolFrom(gatewayUrl(process.env.GRAPH_API_KEY), poolId, entryTs);
 positionRealized(pool, 2).realizedReturnPct;   // the number your dashboard can't show
 ```
 
+### 3. Or as an MCP server, for agents
+
+Paste this into Claude Desktop (`claude_desktop_config.json`), Cursor (`.cursor/mcp.json`), or any
+MCP client, then restart it:
+
 ```jsonc
-// 3. Or as an MCP server, for agents
-{ "mcpServers": { "realized": { "command": "node", "args": ["bin/mcp-server.js"],
-  "env": { "GRAPH_API_KEY": "..." } } } }
-// tools: find_pool, realized_return, position_realized, audit_pools, explain_gap
+{
+  "mcpServers": {
+    "realized": {
+      "command": "node",
+      "args": ["/absolute/path/to/realized/bin/mcp-server.js"],
+      "env": { "GRAPH_API_KEY": "your-subgraph-studio-key" }
+    }
+  }
+}
 ```
+
+**7 tools:** `find_pool` · `realized_return` · `position_realized` · `simulate_exit` ·
+`audit_pools` · `explain_gap` · `rank_pools`
+
+A free Graph key comes from [Subgraph Studio](https://thegraph.com/studio/). **Or skip the key
+entirely** — every tool above is also a plain HTTP GET against our server, which proxies its own
+key:
+
+```bash
+curl "https://realized.drainfun.xyz/api/find?q=WETH/USDC"
+```
+
+Ask your agent: *"I entered the USDC/WETH 0.05% pool on 2026-07-28 at a ±2x range. What did I
+actually make, and what would it cost me to close?"*
 
 Machine-readable spec for every endpoint: **[`/openapi.json`](https://realized.drainfun.xyz/openapi.json)**
 (OpenAPI 3.1) — so an agent never has to guess a request shape or an error code.

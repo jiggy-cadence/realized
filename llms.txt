@@ -7,7 +7,7 @@
 
 Base URL: https://realized.drainfun.xyz
 Repo: https://github.com/jiggy-cadence/realized
-Package: @realized-lp/core
+Library: packages/core in the repo above (plain ESM, no build step)
 License: MIT
 
 ## Why The Graph is load-bearing here
@@ -74,9 +74,9 @@ Tools:
 
 ## Library
 
-    npm i @realized-lp/core
+    git clone https://github.com/jiggy-cadence/realized && cd realized && npm install
 
-    import { gatewayUrl, fetchPoolFrom, positionRealized } from '@realized-lp/core';
+    import { gatewayUrl, fetchPoolFrom, positionRealized } from './packages/core/src/index.js';
     const pool = await fetchPoolFrom(gatewayUrl(process.env.GRAPH_API_KEY), poolId, entryTs);
     positionRealized(pool, 2).realizedReturnPct;
 

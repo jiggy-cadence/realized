@@ -63,10 +63,26 @@ For pools not in the cached set, or a custom window, run the MCP server. Needs a
 git clone https://github.com/jiggy-cadence/realized && cd realized && npm install
 ```
 
+Paste into Claude Desktop (`claude_desktop_config.json`), Cursor (`.cursor/mcp.json`), or any
+MCP client, then restart it:
+
 ```json
-{ "mcpServers": { "realized": {
-  "command": "node", "args": ["/abs/path/to/realized/bin/mcp-server.js"],
-  "env": { "GRAPH_API_KEY": "<your-key>" } } } }
+{
+  "mcpServers": {
+    "realized": {
+      "command": "node",
+      "args": ["/absolute/path/to/realized/bin/mcp-server.js"],
+      "env": { "GRAPH_API_KEY": "your-subgraph-studio-key" }
+    }
+  }
+}
+```
+
+**No key? Skip the MCP server entirely.** Every tool is also a plain HTTP GET against our
+server, which proxies its own Graph key — no auth, CORS open:
+
+```bash
+curl "https://realized.drainfun.xyz/api/find?q=WETH/USDC"
 ```
 
 | tool | use |
