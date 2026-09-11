@@ -180,8 +180,21 @@ export function reconstructPositions(events) {
  * Negative net liquidity is the load-bearing one: it means removes exceeded adds at a key,
  * which is impossible on-chain and would indicate missed pages or a bad grouping key.
  */
-export function auditReconstruction(events, result) {
+export function auditReconstruction(events, result, fetchMeta = {}) {
   const checks = [];
+
+  // COMPLETENESS IS NOT CONSISTENCY. Every other check below verifies that the events we HAVE
+  // sum coherently -- and a truncated history sums coherently too, then reports confident
+  // numbers off a partial record. Measured 2026-09-11: two sampled wallets hit the 5000-event
+  // cap and still returned allPass=true, because nothing asked whether the fetch finished.
+  // A wallet whose history was cut off cannot have its positions reported at all.
+  checks.push({
+    name: 'event_history_complete',
+    pass: fetchMeta.complete !== false,
+    detail: fetchMeta.complete === false
+      ? `event history TRUNCATED at ${fetchMeta.truncatedAt} -- positions cannot be trusted and are withheld`
+      : 'full ModifyLiquidity history retrieved for this owner',
+  });
 
   let neg = 0;
   const keys = new Map();
@@ -240,7 +253,24 @@ export async function walletV4(query, url, owner) {
   }
 
   const result = reconstructPositions(events);
-  const audit = auditReconstruction(events, result);
+  const audit = auditReconstruction(events, result, { complete, truncatedAt });
+
+  // Truncated history => withhold positions entirely rather than report a partial sum that
+  // looks authoritative. Returning 1471 "open" ranges off a capped fetch is worse than
+  // returning none, because the caller cannot see the cap.
+  if (!complete) {
+    return {
+      owner: String(owner).toLowerCase(),
+      dex: 'uniswap-v4',
+      chain: 'mainnet',
+      openPositions: null,
+      positions: [],
+      incompleteHistory: [],
+      audit,
+      evidence: { modifyLiquidityEvents: events.length, pages, complete, truncatedAt },
+      error: `This wallet has more than ${truncatedAt} ModifyLiquidity events; we stopped fetching there. Reconstructing positions from a truncated history would produce confident wrong numbers, so we report none.`,
+    };
+  }
 
   return {
     owner: String(owner).toLowerCase(),
