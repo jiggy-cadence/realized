@@ -148,12 +148,14 @@ slides.push(`
 <section class="slide" id="s3">
   <div class="kicker">It is not a cherry-pick</div>
   <h2>The defect survives every knob we can turn.</h2>
+  <div class="tscroll">
   <table class="t">
-    <thead><tr><th>assumed LP range</th><th>median % of pools misleading</th><th>windows tested</th><th>windows showing the defect</th></tr></thead>
+    <thead><tr><th>assumed LP range</th><th>median % misleading</th><th class="hide-s">windows tested</th><th>windows w/ defect</th></tr></thead>
     <tbody>
-      ${stabilityRows.map((r) => `<tr><td>${esc(r.label)}</td><td class="num"><b>${r.med === null ? '—' : r.med.toFixed(1) + '%'}</b></td><td class="num">${r.windows}</td><td class="num">${r.withDefect}</td></tr>`).join('\n      ')}
+      ${stabilityRows.map((r) => `<tr><td>${esc(r.label)}</td><td class="num"><b>${r.med === null ? '—' : r.med.toFixed(1) + '%'}</b></td><td class="num hide-s">${r.windows}</td><td class="num">${r.withDefect}/${r.windows}</td></tr>`).join('\n      ')}
     </tbody>
   </table>
+  </div>
   <p class="note">Same pools, same window, only the assumed range changes. The direction never flips: <b>the tighter and more realistic your position, the more the advertised number lies to you.</b> Full-range is the most generous possible case for the pool, and the defect is still there. Measured across ${chainsValidated} chains — ${esc(hist.chainsMeasured.join(', '))}.</p>
   <p class="note dim">Fees are held constant across ranges, which is deliberately unfair to us: concentrating earns more fees too. We can't measure per-position fees from pool-level data, so we report the direction and treat magnitudes as bounded by that caveat.</p>
 </section>`);
@@ -191,12 +193,15 @@ slides.push(`
   <h2>We tried to predict which pools will pay. <em class="down">It failed. So we killed it.</em></h2>
   <p class="lede">A single formation/holdout split said we had a pool-picking edge${h3 ? ` of <b>${fmtPp(h3.edgePp)}</b> (${h3.pickedCount} picks from ${h3.poolsScored} pools, verdict "${esc(h3.verdict)}")` : ''}. That would have been the flashiest thing in this submission. So we tried to break it: same scoring function, deliberately not retuned, walked forward across real time.</p>
   ${wfRows.length ? `
+  <div class="tscroll">
   <table class="t">
-    <thead><tr><th>run</th><th>windows</th><th>median edge <span class="dim">(pre-registered)</span></th><th>mean edge</th><th>positive windows</th><th>pooled p</th><th></th></tr></thead>
+    <thead><tr><th>run</th><th class="hide-s">windows</th><th>median edge <span class="dim">(pre-reg)</span></th><th>mean edge</th><th class="hide-s">positive windows</th><th>pooled p</th><th></th></tr></thead>
     <tbody>
-      ${wfRows.map((r) => `<tr><td><code>${esc(r.run)}</code></td><td class="num">${r.windows}</td><td class="num"><b>${fmtPp(r.median)}</b></td><td class="num dim">${fmtPp(r.mean)}</td><td class="num">${r.posPct?.toFixed(1)}%</td><td class="num">${r.p?.toFixed(3)}</td><td><span class="fail">${esc(r.verdict)}</span></td></tr>`).join('\n      ')}
+      ${wfRows.map((r) => `<tr><td><code>${esc(r.run)}</code></td><td class="num hide-s">${r.windows}</td><td class="num"><b>${fmtPp(r.median)}</b></td><td class="num dim">${fmtPp(r.mean)}</td><td class="num hide-s">${r.posPct?.toFixed(1)}%</td><td class="num">${r.p?.toFixed(3)}</td><td><span class="fail">${esc(r.verdict)}</span></td></tr>`).join('\n      ')}
     </tbody>
   </table>
+  </div>
+  <p class="swipe">Swipe the table sideways for every column →</p>
   <p class="note">Pre-registered bar, set <em>before</em> the runs: median edge ≥ ${preReg.minMedianEdgePp}pp, ≥ ${preReg.minPositiveWindowsPct}% positive windows, p ≤ ${preReg.maxP}. Every run clears the positive-window gate and still <b>fails</b> — the median edge never reaches the bar and the p-value never gets close. A cost model of ${(walkForward[0]?.d?.costModel?.roundTripPct ?? 0.1)}% round-trip is charged on every pick.</p>
   <p class="note dim">The bar tests the <b>median</b> window edge, so the median is what's bolded; the mean is shown beside it because they disagree, and picking whichever one looks better after the fact is the exact error this table exists to prevent. Caveat we can't remove: adjacent windows share market regime, so they are not fully independent.</p>
   ` : `<p class="note">Walk-forward result files are not present in this build, but the verdict stands: refuted, do not ship forecasts.</p>`}
@@ -282,11 +287,42 @@ b.up,.up{color:var(--up)} b.down,.down{color:var(--down)}
 .ma{color:#4b5560;font-size:11.5px;white-space:nowrap}
 @media(max-width:640px){.ma{display:none}}
 .eq{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;background:#0d141b;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:16px 0 0;color:var(--up)}
-.t{width:100%;border-collapse:collapse;margin:6px 0 0;font-size:13.5px}
+/* Tables: on a phone these are wider than the viewport. Two-part fix, because either half
+   alone is still broken:
+   1. .tscroll wraps every table so the overflow SCROLLS instead of being silently clipped at
+      the screen edge (Jiggy, 2026-09-11: the last column fell off the right on mobile, with
+      no affordance saying content was there). A right-edge fade + a one-line hint appear
+      only when scrolling is actually possible.
+   2. .hide-s drops the LOWEST-VALUE column under 680px -- same mechanism index.html already
+      uses, so the two pages behave identically. Never drop a column that carries a headline
+      number; only ones whose absence cannot change a reader's conclusion. */
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:6px 0 0;position:relative;scrollbar-width:thin}
+.tscroll::-webkit-scrollbar{height:6px}
+.tscroll::-webkit-scrollbar-thumb{background:#2b3743;border-radius:3px}
+.t{width:100%;border-collapse:collapse;font-size:13.5px;min-width:min(100%,430px)}
 .t th{text-align:left;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);font-weight:700;padding:8px 10px;border-bottom:1px solid #24303d}
 .t td{padding:9px 10px;border-bottom:1px solid #19212a}
-.t td.num{font-variant-numeric:tabular-nums}
+.t td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .t .dim{color:var(--dim)}
+.t th:first-child,.t td:first-child{white-space:normal;min-width:104px}
+.hide-s{display:table-cell}
+.swipe{display:none;font-size:11.5px;color:#5f6a75;margin:7px 0 0;letter-spacing:.02em}
+@media(max-width:680px){
+  .hide-s{display:none}
+  .swipe{display:block}
+  /* min-width:0 + table-layout:fixed makes the table obey the wrapper instead of sizing to
+     its widest cell. Without fixed layout the browser still grows the table past the
+     viewport even with columns hidden, which was the original bug. */
+  .t{font-size:12.5px;min-width:0;table-layout:fixed}
+  .t th,.t td{padding:8px 6px;overflow-wrap:anywhere}
+  .t th{white-space:normal}
+  .t td.num{white-space:normal}
+  .t th:first-child,.t td:first-child{min-width:0}
+  .t code{font-size:11px;padding:1px 3px}
+  .slide{padding:24px 16px 22px;border-radius:14px}
+  .wrap{padding:22px 12px 60px}
+  h2{font-size:22px}
+}
 .fail{color:var(--down);font-weight:700;font-size:12px;letter-spacing:.04em}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:8px 0 0}
 .col{background:#0d141b;border:1px solid var(--line);border-radius:12px;padding:16px}
