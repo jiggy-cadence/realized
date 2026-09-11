@@ -140,6 +140,22 @@ unparseable date, an unknown pool, and a window too short to measure each return
 rather than a number. The same call backs the date picker on the web UI — one implementation of
 the math, three transports (MCP, HTTP, browser).
 
+### `simulate_exit` — decision support for closing a position TODAY
+
+Not a new claim: calls the identical `position_realized` math and reframes it around the
+question a holder actually has at the moment of deciding — dollars on a stated stake, not just
+percent since entry.
+
+```bash
+curl -s "https://realized.drainfun.xyz/api/simulate-exit/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640?entry=2026-07-28&range=2&stake=25000"
+```
+
+`gas` and `slippage` are **always** `{ unavailable: true, reason }`, never a guessed dollar
+figure — this server holds a 1inch **spot price** key, not a verified swap-quote or gas-estimate
+endpoint, and inventing either would reproduce the fabricated-precision defect this project
+exists to expose, aimed at someone's actual exit decision. If `outOfRange` is true, say plainly
+that the loss is locked in regardless of timing — waiting does not un-realize it.
+
 ## Reporting rules (these matter more than the numbers)
 
 1. **Always state the range.** The same pool can be honest full-range and misleading at ±1.25×.

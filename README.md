@@ -76,6 +76,17 @@ positionRealized(pool, 2).realizedReturnPct;   // the number your dashboard can'
 Machine-readable spec for every endpoint: **[`/openapi.json`](https://realized.drainfun.xyz/openapi.json)**
 (OpenAPI 3.1) — so an agent never has to guess a request shape or an error code.
 
+### Deciding whether to exit, not just checking the score
+
+```bash
+curl "https://realized.drainfun.xyz/api/simulate-exit/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640?entry=2026-07-28&range=2&stake=25000"
+```
+
+Same math as `position_realized`, reframed around the moment of deciding: net dollars on a
+stated stake, today. `gas` and `slippage` are **always** returned as `unavailable` with a
+reason — we hold a 1inch spot-price key, not a verified swap-quote/gas-estimate endpoint, and
+we will not invent either figure for a number this close to someone's actual money.
+
 ### Your real range, not an assumed one
 
 Every realized number needs a range width, and `±2×` is a guess. Paste an address and we read the

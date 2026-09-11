@@ -116,6 +116,26 @@
         }
       }
     },
+    "/api/simulate-exit/{poolId}": {
+      "get": {
+        "tags": ["measurement"],
+        "operationId": "simulateExit",
+        "summary": "Decision support: what would closing this position TODAY actually net, in dollars?",
+        "description": "Not a new claim \u2014 calls the identical position_realized math and reframes it around the question a holder has at the moment of deciding whether to exit: dollars on a stated stake, not just percentages since entry. gas and slippage are ALWAYS returned as unavailable with a stated reason: this server holds a 1inch SPOT PRICE key, not a verified swap-quote or gas-estimate endpoint, and guessing either would reproduce the fabricated-precision defect this project exists to expose, aimed at someone's actual exit decision. If outOfRange is true, the loss is locked in regardless of timing.",
+        "parameters": [
+          { "$ref": "#/components/parameters/PoolId" },
+          { "name": "entry", "in": "query", "required": true, "schema": { "type": "string", "format": "date" }, "example": "2026-07-28", "description": "Entry date, YYYY-MM-DD." },
+          { "name": "range", "in": "query", "required": false, "schema": { "type": "number", "default": 2 }, "description": "Range width the LP actually set. Get the real one from /api/wallet/{address}." },
+          { "name": "stake", "in": "query", "required": false, "schema": { "type": "number", "default": 10000 }, "description": "Position size in USD, for a dollar answer instead of only percentages." },
+          { "$ref": "#/components/parameters/Dex" },
+          { "$ref": "#/components/parameters/Chain" }
+        ],
+        "responses": {
+          "200": { "description": "Exit simulation for the position", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SimulateExit" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
     "/api/wallet/{address}": {
       "get": {
         "tags": ["discovery"],
@@ -268,6 +288,22 @@
           "realizedReturnPct": { "type": "number" },
           "realizedAprPct": { "type": ["number", "null"] },
           "measurable": { "type": "boolean" }
+        }
+      },
+      "SimulateExit": {
+        "type": "object",
+        "required": ["measurable"],
+        "properties": {
+          "measurable": { "type": "boolean" },
+          "stakeUsd": { "type": "number" },
+          "feesUsd": { "type": "number" },
+          "impermanentLossUsd": { "type": "number" },
+          "netUsd": { "type": "number", "description": "What the stake would be worth net of fees and impermanent loss, excluding gas and slippage." },
+          "netPct": { "type": "number" },
+          "outOfRange": { "type": "boolean" },
+          "gas": { "type": "object", "properties": { "unavailable": { "type": "boolean", "enum": [true] }, "reason": { "type": "string" } }, "description": "Always unavailable: no verified gas-estimate endpoint is wired. Never a guessed value." },
+          "slippage": { "type": "object", "properties": { "unavailable": { "type": "boolean", "enum": [true] }, "reason": { "type": "string" } }, "description": "Always unavailable: no verified swap-quote endpoint is wired. Never a guessed value." },
+          "verdict": { "type": "string" }
         }
       },
       "PositionRealized": {

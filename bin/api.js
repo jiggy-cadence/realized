@@ -26,7 +26,7 @@ import { readFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import {
-  gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, summarize, sensitivity, DEFAULT_LIVENESS,
+  gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, simulateExit, summarize, sensitivity, DEFAULT_LIVENESS,
 } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
 import { VENUES, subgraphId, venueList } from '../lib/venues.js';
@@ -246,6 +246,33 @@ async function liveWallet(owner, { dex = 'uniswap-v3', chain = 'mainnet', includ
   };
 }
 
+/**
+ * liveSimulateExit — same fetch + venue handling as livePosition, different question:
+ * "if I closed this position today, what would I walk away with?" Not a new data path --
+ * calls the SAME fetchPoolFrom this file already uses, then simulateExit instead of
+ * positionRealized. One fetch, two framings of the same verified numbers.
+ */
+async function liveSimulateExit(poolId, { entry, range = 2, stake = 10_000 } = {}, dex = 'uniswap-v3', chain = 'mainnet') {
+  const id = subgraphId(dex, chain);
+  if (!id) return { error: `unknown venue ${dex}/${chain}` };
+  if (!entry) return { error: 'entry is required, e.g. ?entry=2026-08-01 (ISO date or unix timestamp)' };
+  let ts;
+  if (/^\d+$/.test(String(entry))) {
+    ts = Number(entry);
+  } else {
+    const d = new Date(entry);
+    if (Number.isNaN(d.getTime())) return { error: `could not parse entry "${entry}" as an ISO date or unix timestamp` };
+    ts = Math.floor(d.getTime() / 1000);
+  }
+  if (ts > Math.floor(Date.now() / 1000)) return { error: 'entry date is in the future' };
+  const stakeUsd = Number(stake);
+  if (!(stakeUsd > 0)) return { error: 'stake must be a positive number of USD' };
+
+  const pool = await fetchPoolFrom(gatewayUrl(API_KEY, id), poolId, ts);
+  if (!pool) return { error: `pool ${poolId} not found on ${dex}/${chain}` };
+  return simulateExit(pool, range, stakeUsd);
+}
+
 async function liveAudit({ limit = 250, days = 30, dex = 'uniswap-v3', chain = 'mainnet' } = {}) {
   const id = subgraphId(dex, chain);
   if (!id) return { error: `unknown venue ${dex}/${chain}` };
@@ -354,6 +381,21 @@ const server = createServer(async (req, res) => {
       return json(res, out.error ? 400 : 200, out);
     }
 
+    // /api/simulate-exit/{poolId} -- decision support for closing a position TODAY. Same
+    // fetch + math as /api/position/, reframed around dollars on a stake and an explicit
+    // gas/slippage `unavailable` rather than a number from an endpoint we have not verified.
+    if (p.startsWith('/api/simulate-exit/')) {
+      const poolId = decodeURIComponent(p.slice('/api/simulate-exit/'.length));
+      const entry = url.searchParams.get('entry') || '';
+      const range = Number(url.searchParams.get('range') || 2);
+      const stake = Number(url.searchParams.get('stake') || 10_000);
+      const dex = url.searchParams.get('dex') || 'uniswap-v3';
+      const chain = url.searchParams.get('chain') || 'mainnet';
+      const out = await cached('pool', `exit|${dex}|${chain}|${poolId.toLowerCase()}|${entry}|${range}|${stake}`,
+        () => liveSimulateExit(poolId, { entry, range, stake }, dex, chain));
+      return json(res, out.error ? 400 : 200, out);
+    }
+
     // /api/wallet/{address} — which pools does this address actually hold, and at what range.
     //
     // This is position DISCOVERY, not per-position P&L, and that is a measured decision rather
@@ -433,7 +475,7 @@ const server = createServer(async (req, res) => {
       if (target.startsWith(join(ROOT, 'assets')) && existsSync(target)) return serveFile(res, target);
     }
 
-    return json(res, 404, { error: 'not found', spec: '/openapi.json', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/position/{id}?entry=2026-08-01', '/api/wallet/{address}', '/api/audit', '/api/venues'] });
+    return json(res, 404, { error: 'not found', spec: '/openapi.json', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/position/{id}?entry=2026-08-01', '/api/simulate-exit/{id}?entry=2026-08-01&stake=10000', '/api/wallet/{address}', '/api/audit', '/api/venues'] });
   } catch (e) {
     return json(res, 500, { error: String(e.message || e) });
   }

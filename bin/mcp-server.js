@@ -11,7 +11,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, summarize, sensitivity, isLive, DEFAULT_LIVENESS,
+  gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, simulateExit, summarize, sensitivity, isLive, DEFAULT_LIVENESS,
 } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange, RANGES } from '../lib/concentrated.js';
 
@@ -95,6 +95,33 @@ const TOOLS = [
             + '1e8 or omit for full-range. If price left this band the loss is realized, not impermanent.',
           default: 2,
         },
+      },
+      required: ['poolId', 'entryDate'],
+    },
+  },
+  {
+    name: 'simulate_exit',
+    description:
+      'DECISION SUPPORT for closing a position TODAY. Not a new claim -- reframes the exact same '
+      + 'position_realized math around the question a holder actually has at the moment of deciding: '
+      + '"if I closed this right now, what would I walk away with, in dollars, on a stake this size?"\n\n'
+      + 'WHEN TO USE: the user is deciding whether to exit, not just checking historical performance.\n'
+      + 'RETURNS: { measurable, stakeUsd, feesUsd, impermanentLossUsd, netUsd, netPct, outOfRange, '
+      + 'gas:{unavailable,reason}, slippage:{unavailable,reason}, verdict }.\n'
+      + 'HONESTY CONTRACT: gas and slippage are ALWAYS { unavailable: true } with a stated reason -- '
+      + 'this server holds a 1inch SPOT PRICE key, not a verified swap-quote/gas-estimate endpoint, and '
+      + 'guessing either would be exactly the fabricated-precision defect this project exists to expose, '
+      + 'aimed at someone\'s actual exit decision. Tell the user those costs are not included, never imply '
+      + 'netUsd is what they would receive in their wallet after a real swap.\n'
+      + 'If outOfRange is true, say plainly that the loss is locked in regardless of timing -- waiting '
+      + 'does not un-realize it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        poolId: { type: 'string', description: 'Uniswap v3 pool address (0x...)' },
+        entryDate: { type: 'string', description: 'ISO date (YYYY-MM-DD) or unix timestamp (seconds) you entered the position' },
+        rangeWidthX: { type: 'number', description: 'Your concentrated range as a half-width factor: 1.25 tight, 2 typical, 4 wide, 1e8 or omit for full-range.', default: 2 },
+        stakeUsd: { type: 'number', description: 'Your position size in USD, for a dollar-denominated answer instead of only percentages.', default: 10000 },
       },
       required: ['poolId', 'entryDate'],
     },
@@ -260,6 +287,24 @@ async function positionRealizedTool({ poolId, entryDate, rangeWidthX = 2 }) {
   };
 }
 
+async function simulateExitTool({ poolId, entryDate, rangeWidthX = 2, stakeUsd = 10_000 }) {
+  if (!poolId) return { error: 'poolId is required' };
+  if (!entryDate) return { error: 'entryDate is required, e.g. "2026-08-01" or a unix timestamp' };
+  let ts;
+  if (/^\d+$/.test(String(entryDate))) {
+    ts = Number(entryDate);
+  } else {
+    const d = new Date(entryDate);
+    if (Number.isNaN(d.getTime())) return { error: `could not parse entryDate "${entryDate}" as an ISO date or unix timestamp` };
+    ts = Math.floor(d.getTime() / 1000);
+  }
+  const stake = Number(stakeUsd);
+  if (!(stake > 0)) return { error: 'stakeUsd must be a positive number' };
+  const pool = await fetchPoolFrom(URL(), poolId, ts);
+  if (!pool) return { error: `pool ${poolId} not found in the Uniswap v3 subgraph` };
+  return simulateExit(pool, rangeWidthX, stake);
+}
+
 async function auditPools({ limit = 250, days = 30 }) {
   const pools = await fetchTopPools(URL(), { first: limit, days });
   const scored = pools.map(scorePool);
@@ -392,6 +437,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (name === 'find_pool') return ok(await findPool(args));
     if (name === 'realized_return') return ok(await realizedReturn(args));
     if (name === 'position_realized') return ok(await positionRealizedTool(args));
+    if (name === 'simulate_exit') return ok(await simulateExitTool(args));
     if (name === 'audit_pools') return ok(await auditPools(args));
     if (name === 'explain_gap') return ok(await explainGap(args));
     if (name === 'rank_pools') return ok(await rankPools(args));

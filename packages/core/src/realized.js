@@ -105,6 +105,55 @@ export async function fetchPoolFrom(url, poolId, entryTimestamp) {
  * The only new logic here is date-anchoring the fee/price series to the caller's
  * actual entry point instead of "the most recent N days."
  */
+/**
+ * simulateExit — decision support for a position someone is deciding whether to close TODAY.
+ *
+ * NOT a new claim. It calls positionRealized (identical math, identical honesty contract:
+ * measurable:false rather than a fabricated number, outOfRange rather than silently treating
+ * a locked-in loss as still-impermanent) and reframes the SAME figures around the one question
+ * a holder actually has at the moment of deciding: "if I closed this right now, what would I
+ * actually walk away with, in dollars, on a stake of this size?"
+ *
+ * WHAT IT DELIBERATELY DOES NOT CLAIM: gas cost and swap slippage on exit. We hold a 1inch
+ * SPOT PRICE key, not a verified swap-quote/gas-estimate endpoint -- promising a number from
+ * an API surface we have not proven live would be exactly the fabricated-precision defect this
+ * project exists to expose, aimed at someone's actual exit decision. So those fields are
+ * `unavailable: true` with a stated reason, never a guessed dollar figure. If a swap-quote
+ * integration is added later, this is the one place that number would plug in.
+ */
+function fmtUsd(n) {
+  const abs = Math.abs(n).toFixed(0);
+  return n < 0 ? `-$${abs}` : `$${abs}`;
+}
+
+export function simulateExit(pool, rangeWidthX = 2, stakeUsd = 10_000) {
+  const pos = positionRealized(pool, rangeWidthX);
+  if (!pos.measurable) return pos;
+  const feesUsd = stakeUsd * (pos.feeReturnPct / 100);
+  const ilUsd = stakeUsd * (pos.impermanentLossPct / 100);
+  const netUsd = stakeUsd * (pos.realizedReturnPct / 100);
+  return {
+    measurable: true,
+    pair: pos.pair,
+    entryDate: pos.entryDate,
+    asOfDate: pos.latestDate,
+    daysHeld: pos.daysHeld,
+    rangeWidthX: pos.rangeWidthX,
+    stakeUsd,
+    feesUsd: Number(feesUsd.toFixed(2)),
+    impermanentLossUsd: Number(ilUsd.toFixed(2)),
+    netUsd: Number(netUsd.toFixed(2)),
+    netPct: pos.realizedReturnPct,
+    outOfRange: pos.outOfRange,
+    outOfRangeNote: pos.outOfRangeNote,
+    gas: { unavailable: true, reason: 'no verified gas-estimate endpoint wired; do not infer a value' },
+    slippage: { unavailable: true, reason: 'no verified swap-quote endpoint wired; do not infer a value' },
+    verdict: pos.outOfRange
+      ? `Exiting today: ${fmtUsd(netUsd)} net on a $${stakeUsd.toLocaleString()} stake. Price already left your range, so this loss is locked in regardless of when you close -- waiting does not un-realize it.`
+      : `Exiting today: ${fmtUsd(netUsd)} net on a $${stakeUsd.toLocaleString()} stake (fees ${fmtUsd(feesUsd)}, impermanent loss ${fmtUsd(ilUsd)}). Still in range -- this number moves if price moves before you actually close.`,
+  };
+}
+
 export function positionRealized(pool, rangeWidthX = 2) {
   const days = pool?.poolDayData ?? [];
   // NOTE: fetchPoolFrom returns ASCENDING (oldest first) by construction -- scorePool's
