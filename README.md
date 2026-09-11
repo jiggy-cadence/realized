@@ -303,6 +303,51 @@ Different team, different codebase, different incentive model (veAERO emissions 
 fee capture) — **same defect, same shape, same range-ordering.** It is a property of how
 concentrated liquidity advertises itself, not a quirk of one DEX.
 
+### What each venue can actually answer
+
+Not every venue supports every question, and the differences are not cosmetic — they come from
+what the subgraph exposes. `/api/venues` publishes this as booleans so an agent can **check**
+capability instead of assuming it.
+
+| venue | chains | source | pool analytics | wallet lookup | real range | realized return | exit sim |
+|---|---|---|---|---|---|---|---|
+| **Uniswap v3** | mainnet, arbitrum, polygon, base | position **state** | yes | yes | yes | **yes** | **yes** |
+| **Uniswap v4** | mainnet | **event reconstruction** | yes | yes | yes | **no** | **no** |
+| **Aerodrome** | base | pool-only | yes | **no** | — | — | — |
+
+**Why v4 is a different kind of answer.** The v4 `Position` entity carries only
+`id`/`tokenId`/`owner`/`origin`/`createdAtTimestamp` — **no tick range at all.** In v3 the range
+sits on the position NFT, so reading "the band you actually set" is a lookup: the chain already
+did the bookkeeping. In v4 the range exists only in the event log, so we reconstruct it by summing
+signed `ModifyLiquidity.amount` per `(pool, tickLower, tickUpper)`.
+
+That is bookkeeping, not new mathematics — and it is worth being precise about what it buys and
+what it costs. It supports the range and in/out-of-range. It does **not** support realized return
+or exit pricing, and we refuse to compute them rather than publish a confident wrong number:
+**event-derived state is a strictly weaker evidence class than a state read, and it inherits gaps
+a state read never has.** Three of those gaps are handled explicitly, each found by measurement:
+
+- **~48% of v4 events are `amount: 0`** fee-collection no-ops. Counting them invents positions at
+  real-looking tick ranges, so they are discarded.
+- **Removals with no matching add** mean the position was transferred in — its adds happened under
+  a different `origin`. Reported as `incompleteHistory[]` with the reason, size deliberately
+  withheld. Neither dropped silently nor counted as liquidity.
+- **Over 5000 events, we report nothing.** `openPositions: null` plus an explicit error. Found by
+  running the reconstruction across five unrelated wallets: two hit the fetch cap and reported
+  **1471 and 501 "open positions"** while every consistency check passed. A truncated sum is
+  self-consistent and wrong — **consistency is not completeness.** The audit now checks both, and
+  ships `audit.checks[]` + `audit.allPass` in every v4 response.
+
+Lookups key on **`origin`** (the EOA), never `sender` — `sender` is the position manager contract
+and matches nothing.
+
+**Uniswap v2 is excluded on purpose.** v2 LP shares are fungible and always full-range, so "read
+the range you actually set" has no meaning there. Adding it would dilute the claim, not extend it.
+
+**Aerodrome is pool-level only.** Its subgraph exposes no per-owner Position entity, so
+`/api/wallet?dex=aerodrome` returns an explicit error. Our own capability map claimed otherwise
+until we tested it — the map was the thing that was wrong, not the endpoint.
+
 **SushiSwap v3 is reported as unmeasurable, not as clean.** Its subgraph answers, but only 8 pools
 clear the $250k TVL floor and none is a stable/stable pair — so the canary cannot prove the
 instrument works there. All 30 windows are `trusted: false` and **no SushiSwap number is quoted**,
