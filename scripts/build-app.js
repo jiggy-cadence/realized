@@ -46,7 +46,23 @@ try { llama = R('data/llama-layer.json'); } catch { /* not yet generated */ }
 // A person landing here wants a number that helps them decide, not a sentence
 // explaining a concept. Falls back to the old static headline if absent.
 let corpusHeadline = null;
-try { corpusHeadline = R('data/corpus.json').headline; } catch { /* not yet generated */ }
+let corpusCounts = null;
+try {
+  const _c = R('data/corpus.json');
+  corpusHeadline = _c.headline;
+  corpusCounts = _c.counts;
+} catch { /* not yet generated */ }
+
+// 2026-09-11: the hero said "X% of live pools" while the trust tables below said 141 of 256.
+// Both true, DIFFERENT DENOMINATORS, and nothing on the page said so -- corpus.json applies a
+// liveness/volatility gate (250 fetched -> ~102 kept), while pools.json measures all 256.
+// A judge dividing 141/256 catches the apparent contradiction in ten seconds, and for a project
+// whose thesis is "numbers drift from their labels" that is the worst possible place to have an
+// unlabelled denominator. So the hero now states BOTH populations explicitly.
+const trustCounts = (() => {
+  const scored = pools.pools.filter((p) => p.realizedAprPct !== null);
+  return { total: scored.length, misleading: scored.filter((p) => p.misleading === true).length };
+})();
 
 // ---- the shock card ----------------------------------------------------------------------
 // Jiggy, 2026-09-10: "the which pool and when did you enter are cool and all but idk, human
@@ -395,7 +411,7 @@ ${shock ? `
   </div>
   <p class="shock-why">Advertised APR is fee income, annualised. It has no price term — so it is
   <strong>positive by construction</strong> and cannot show a loss, no matter what happened to your money.
-  Live from The Graph, recomputed every build. ${corpusHeadline ? `<strong>${corpusHeadline.misleadingPct.toFixed(0)}%</strong> of live pools are doing this right now.` : ''}</p>
+  Live from The Graph, recomputed every build. ${corpusHeadline ? `<strong>${corpusHeadline.misleadingPct.toFixed(0)}%</strong> of the ${corpusCounts?.liveVolatile ?? '?'} pools that clear our liveness gate are doing this right now — and <strong>${trustCounts.misleading}</strong> of the <strong>${trustCounts.total}</strong> pools we track overall.` : ''}</p>
   <button class="shock-cta" id="cta">Check your own position ↓</button>
 </div>
 ` : `
