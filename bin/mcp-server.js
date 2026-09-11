@@ -14,6 +14,7 @@ import {
   gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, simulateExit, summarize, sensitivity, isLive, DEFAULT_LIVENESS,
 } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange, RANGES } from '../lib/concentrated.js';
+import { exitGasCost } from '../packages/core/src/oneinch.js';
 
 const API_KEY = process.env.GRAPH_API_KEY;
 const URL = () => gatewayUrl(API_KEY);
@@ -108,11 +109,15 @@ const TOOLS = [
       + 'WHEN TO USE: the user is deciding whether to exit, not just checking historical performance.\n'
       + 'RETURNS: { measurable, stakeUsd, feesUsd, impermanentLossUsd, netUsd, netPct, outOfRange, '
       + 'gas:{unavailable,reason}, slippage:{unavailable,reason}, verdict }.\n'
-      + 'HONESTY CONTRACT: gas and slippage are ALWAYS { unavailable: true } with a stated reason -- '
-      + 'this server holds a 1inch SPOT PRICE key, not a verified swap-quote/gas-estimate endpoint, and '
-      + 'guessing either would be exactly the fabricated-precision defect this project exists to expose, '
-      + 'aimed at someone\'s actual exit decision. Tell the user those costs are not included, never imply '
-      + 'netUsd is what they would receive in their wallet after a real swap.\n'
+      + 'GAS is real: live gas price from 1inch x estimated gas units for decreaseLiquidity + collect. '
+      + 'The PRICE is measured, the UNITS are an estimate, so report the dollar figure as approximate.\n'
+      + 'SLIPPAGE: closing a v3 position is NOT a swap -- decreaseLiquidity + collect returns BOTH tokens '
+      + 'at the current tick, so price impact is a measured ZERO, not an unavailable field. Slippage only '
+      + 'applies if the user then chooses to swap one side into the other; pass consolidate:true for that '
+      + 'case and the estimate is explicitly a LOWER BOUND (modelled against total pool TVL, while a '
+      + 'concentrated pool\'s depth at the active tick is thinner).\n'
+      + 'netAfterCostsUsd is only populated when BOTH gas and slippage are known; it is null otherwise '
+      + 'rather than a partial subtraction presented as a complete figure.\n'
       + 'If outOfRange is true, say plainly that the loss is locked in regardless of timing -- waiting '
       + 'does not un-realize it.',
     inputSchema: {
@@ -122,6 +127,7 @@ const TOOLS = [
         entryDate: { type: 'string', description: 'ISO date (YYYY-MM-DD) or unix timestamp (seconds) you entered the position' },
         rangeWidthX: { type: 'number', description: 'Your concentrated range as a half-width factor: 1.25 tight, 2 typical, 4 wide, 1e8 or omit for full-range.', default: 2 },
         stakeUsd: { type: 'number', description: 'Your position size in USD, for a dollar-denominated answer instead of only percentages.', default: 10000 },
+        consolidate: { type: 'boolean', description: 'Set true ONLY if the user intends to swap one token into the other after closing. Closing alone is not a swap and costs zero slippage.', default: false },
       },
       required: ['poolId', 'entryDate'],
     },
@@ -287,7 +293,7 @@ async function positionRealizedTool({ poolId, entryDate, rangeWidthX = 2 }) {
   };
 }
 
-async function simulateExitTool({ poolId, entryDate, rangeWidthX = 2, stakeUsd = 10_000 }) {
+async function simulateExitTool({ poolId, entryDate, rangeWidthX = 2, stakeUsd = 10_000, consolidate = false }) {
   if (!poolId) return { error: 'poolId is required' };
   if (!entryDate) return { error: 'entryDate is required, e.g. "2026-08-01" or a unix timestamp' };
   let ts;
@@ -302,7 +308,8 @@ async function simulateExitTool({ poolId, entryDate, rangeWidthX = 2, stakeUsd =
   if (!(stake > 0)) return { error: 'stakeUsd must be a positive number' };
   const pool = await fetchPoolFrom(URL(), poolId, ts);
   if (!pool) return { error: `pool ${poolId} not found in the Uniswap v3 subgraph` };
-  return simulateExit(pool, rangeWidthX, stake);
+  const gas = await exitGasCost({ chain: 'mainnet' });
+  return simulateExit(pool, rangeWidthX, stake, { gas, consolidate });
 }
 
 async function auditPools({ limit = 250, days = 30 }) {

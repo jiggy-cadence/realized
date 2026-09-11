@@ -122,16 +122,90 @@ export async function fetchPoolFrom(url, poolId, entryTimestamp) {
  * integration is added later, this is the one place that number would plug in.
  */
 function fmtUsd(n) {
-  const abs = Math.abs(n).toFixed(0);
+  // Sub-dollar amounts keep cents: gas at $0.19 rendered as "$0" reads as free rather than
+  // cheap, which is a label drifting from its number in the direction that flatters us.
+  const a = Math.abs(n);
+  const abs = a > 0 && a < 1 ? a.toFixed(2) : a.toFixed(0);
   return n < 0 ? `-$${abs}` : `$${abs}`;
 }
 
-export function simulateExit(pool, rangeWidthX = 2, stakeUsd = 10_000) {
+/**
+ * exitSlippage -- what consolidating an exited position into ONE token would cost in price impact.
+ *
+ * THE CONCEPTUAL POINT, which matters more than the arithmetic: closing a v3 position is NOT a
+ * swap. decreaseLiquidity + collect hands back BOTH tokens at the current tick -- no trade, no
+ * price impact, slippage is exactly zero. Slippage only exists if the holder then CHOOSES to
+ * swap one side into the other, which is a separate decision many never make.
+ *
+ * So a single "exit slippage" number quoted for everyone would be inventing two things at once:
+ * the token amounts, and the intent to consolidate. Instead:
+ *   - the no-swap path is reported as a measured ZERO, because it genuinely is zero;
+ *   - the consolidation path is estimated from the pool's OWN depth, and only when we know the
+ *     position's real share of liquidity.
+ *
+ * Depth estimate: for a constant-product-equivalent slice, price impact of trading size S against
+ * reserves R is approximately S / (S + R). We use the pool's current TVL as R, which is
+ * conservative for a concentrated pool (real depth at the active tick is thinner than total TVL,
+ * so this UNDERSTATES impact) -- stated in the response rather than hidden, and the reason this
+ * is labelled an estimate with a bound rather than a quote.
+ */
+export function exitSlippage({ stakeUsd, poolTvlUsd, feeTierPct = 0.05, consolidate = false } = {}) {
+  if (!consolidate) {
+    return {
+      available: true,
+      measured: true,
+      slippagePct: 0,
+      costUsd: 0,
+      note: 'Closing a v3 position returns BOTH tokens at the current tick -- it is not a swap, so price impact is zero. This figure is a measured zero, not an unavailable field.',
+    };
+  }
+  if (!(stakeUsd > 0) || !(poolTvlUsd > 0)) {
+    return { available: false, reason: 'need position size and pool TVL to estimate consolidation impact' };
+  }
+  // Only HALF the position needs swapping to consolidate into one side.
+  const swapSize = stakeUsd / 2;
+  const impactPct = (swapSize / (swapSize + poolTvlUsd)) * 100;
+  const feePct = Number(feeTierPct) || 0;
+  const totalPct = impactPct + feePct;
+  return {
+    available: true,
+    measured: false,
+    isEstimate: true,
+    assumesConsolidationToOneToken: true,
+    swapSizeUsd: Number(swapSize.toFixed(2)),
+    poolTvlUsd: Number(poolTvlUsd.toFixed(0)),
+    priceImpactPct: Number(impactPct.toFixed(4)),
+    poolFeePct: feePct,
+    slippagePct: Number(totalPct.toFixed(4)),
+    costUsd: Number((swapSize * (totalPct / 100)).toFixed(2)),
+    note: 'Estimate, and a LOWER BOUND: impact is modelled against total pool TVL, but a concentrated '
+      + 'pool\'s depth at the active tick is thinner than its TVL, so real impact is likely higher. '
+      + 'Applies only if you choose to swap one side into the other -- closing alone costs zero slippage.',
+  };
+}
+
+export function simulateExit(pool, rangeWidthX = 2, stakeUsd = 10_000, opts = {}) {
   const pos = positionRealized(pool, rangeWidthX);
   if (!pos.measurable) return pos;
   const feesUsd = stakeUsd * (pos.feeReturnPct / 100);
   const ilUsd = stakeUsd * (pos.impermanentLossPct / 100);
   const netUsd = stakeUsd * (pos.realizedReturnPct / 100);
+  const slippage = exitSlippage({
+    stakeUsd,
+    poolTvlUsd: Number(pool?.totalValueLockedUSD || 0),
+    feeTierPct: pool?.feeTier ? Number(pool.feeTier) / 10_000 : 0.05,
+    consolidate: Boolean(opts.consolidate),
+  });
+  const gas = opts.gas ?? { available: false, reason: 'gas not requested; the HTTP and MCP surfaces fetch it live' };
+  // Only fold costs into a single number when BOTH are actually known. A partial subtraction
+  // (real slippage, missing gas) would read as a complete figure while silently omitting a term
+  // -- the same defect this project exists to expose.
+  const gasUsd = gas.available ? Number(gas.costUsd) : null;
+  const slipUsd = slippage.available ? Number(slippage.costUsd) : null;
+  const costsKnown = gasUsd !== null && slipUsd !== null;
+  const costTail = costsKnown
+    ? `, or ${fmtUsd(netUsd - gasUsd - slipUsd)} after ${fmtUsd(gasUsd)} gas${slipUsd > 0 ? ` and ${fmtUsd(slipUsd)} slippage` : ' (closing alone costs no slippage)'}`
+    : '';
   return {
     measurable: true,
     pair: pos.pair,
@@ -146,11 +220,15 @@ export function simulateExit(pool, rangeWidthX = 2, stakeUsd = 10_000) {
     netPct: pos.realizedReturnPct,
     outOfRange: pos.outOfRange,
     outOfRangeNote: pos.outOfRangeNote,
-    gas: { unavailable: true, reason: 'no verified gas-estimate endpoint wired; do not infer a value' },
-    slippage: { unavailable: true, reason: 'no verified swap-quote endpoint wired; do not infer a value' },
+    gas,
+    slippage,
+    netAfterCostsUsd: costsKnown ? Number((netUsd - gasUsd - slipUsd).toFixed(2)) : null,
+    netAfterCostsNote: costsKnown
+      ? `Net of position P&L, ${fmtUsd(gasUsd)} gas, and ${fmtUsd(slipUsd)} slippage.`
+      : 'Not computed: gas is unavailable, so subtracting it would invent a number. Use netUsd and add costs yourself.',
     verdict: pos.outOfRange
-      ? `Exiting today: ${fmtUsd(netUsd)} net on a $${stakeUsd.toLocaleString()} stake. Price already left your range, so this loss is locked in regardless of when you close -- waiting does not un-realize it.`
-      : `Exiting today: ${fmtUsd(netUsd)} net on a $${stakeUsd.toLocaleString()} stake (fees ${fmtUsd(feesUsd)}, impermanent loss ${fmtUsd(ilUsd)}). Still in range -- this number moves if price moves before you actually close.`,
+      ? `Exiting today: ${fmtUsd(netUsd)} net on a $${stakeUsd.toLocaleString()} stake${costTail}. Price already left your range, so this loss is locked in regardless of when you close -- waiting does not un-realize it.`
+      : `Exiting today: ${fmtUsd(netUsd)} net on a $${stakeUsd.toLocaleString()} stake (fees ${fmtUsd(feesUsd)}, impermanent loss ${fmtUsd(ilUsd)})${costTail}. Still in range -- this number moves if price moves before you actually close.`,
   };
 }
 

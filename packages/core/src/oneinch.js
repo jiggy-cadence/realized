@@ -25,7 +25,84 @@
 const SPOT_BASE = 'https://api.1inch.dev/price/v1.1';
 
 // 1inch chain ids match EVM chain ids; we only map the chains our venues cover.
-const CHAIN_IDS = { mainnet: 1, arbitrum: 42161, polygon: 137, base: 8453 };
+// optimism added 2026-09-11: venueList() covers it and 1inch gas-price returns 200 there,
+// so omitting it was silently degrading one of our five chains to "unsupported".
+const CHAIN_IDS = { mainnet: 1, arbitrum: 42161, polygon: 137, base: 8453, optimism: 10 };
+
+const GAS_BASE = 'https://api.1inch.dev/gas-price/v1.5';
+
+/**
+ * Gas units for closing a Uniswap v3 position. Exiting is TWO transactions, not one:
+ *   decreaseLiquidity  ~150k   (burn the liquidity back into token amounts)
+ *   collect            ~120k   (sweep tokens + accrued fees to the owner)
+ * Sources: typical mainnet execution for NonfungiblePositionManager calls. These are
+ * ESTIMATES of gas UNITS -- the gas PRICE is live. We state the split so a caller can
+ * substitute their own unit figures rather than trusting ours as exact.
+ */
+export const EXIT_GAS_UNITS = { decreaseLiquidity: 150_000, collect: 120_000, total: 270_000 };
+
+/**
+ * What it costs, in USD, to close a v3 position right now.
+ *
+ * Live gas price from 1inch, multiplied by estimated gas units, priced in the chain's native
+ * token via 1inch spot price. Degrades honestly at every step: no key, unsupported chain, or
+ * an upstream failure returns { available:false, reason }, never a fabricated dollar figure.
+ *
+ * NOTE ON PRECISION: the gas PRICE is measured live; the gas UNITS are estimates. We report
+ * both separately and label the result an estimate, because pretending a +/-15% unit estimate
+ * is an exact cost would be the same fabricated-precision defect this project exists to expose.
+ */
+export async function exitGasCost({
+  chain = 'mainnet',
+  apiKey = process.env.ONEINCH_API_KEY,
+  gasUnits = EXIT_GAS_UNITS.total,
+  speed = 'medium',
+  timeoutMs = 8000,
+} = {}) {
+  if (!apiKey) return { available: false, reason: 'no ONEINCH_API_KEY set — gas estimate skipped' };
+  const chainId = CHAIN_IDS[chain];
+  if (!chainId) return { available: false, reason: `1inch gas price not wired for chain "${chain}"` };
+
+  // Native token address is the same sentinel across EVM chains in 1inch's price API.
+  const NATIVE = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const hdrs = { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' };
+    const gasRes = await fetch(`${GAS_BASE}/${chainId}`, { headers: hdrs, signal: ctrl.signal });
+    if (!gasRes.ok) return { available: false, reason: `1inch gas-price HTTP ${gasRes.status}` };
+    const gas = await gasRes.json();
+    const tier = gas?.[speed] ?? gas?.medium;
+    const maxFeeWei = Number(tier?.maxFeePerGas);
+    if (!(maxFeeWei > 0)) return { available: false, reason: '1inch returned no usable gas price' };
+
+    const priceRes = await fetch(`https://api.1inch.dev/price/v1.1/${chainId}/${NATIVE}?currency=USD`, { headers: hdrs, signal: ctrl.signal });
+    if (!priceRes.ok) return { available: false, reason: `native-token price HTTP ${priceRes.status}` };
+    const priceBody = await priceRes.json();
+    const nativeUsd = Number(priceBody[NATIVE] ?? priceBody[NATIVE.toLowerCase()]);
+    if (!(nativeUsd > 0)) return { available: false, reason: '1inch returned no usable native-token price' };
+
+    const costNative = (maxFeeWei * gasUnits) / 1e18;
+    const costUsd = costNative * nativeUsd;
+    return {
+      available: true,
+      source: '1inch gas-price v1.5 + spot price v1.1',
+      chain,
+      speed,
+      gasPriceGwei: Number((maxFeeWei / 1e9).toFixed(4)),
+      gasUnits,
+      gasUnitsBreakdown: EXIT_GAS_UNITS,
+      nativeTokenUsd: Number(nativeUsd.toFixed(2)),
+      costUsd: Number(costUsd.toFixed(2)),
+      isEstimate: true,
+      note: `Gas PRICE is live; gas UNITS (${gasUnits.toLocaleString()}) are an estimate for decreaseLiquidity + collect. Treat the dollar figure as approximate, not exact.`,
+    };
+  } catch (e) {
+    return { available: false, reason: `1inch gas lookup failed: ${String(e.message || e).slice(0, 120)}` };
+  } finally {
+    clearTimeout(t);
+  }
+}
 
 /**
  * Fetch the spot price of token0 denominated in token1 from 1inch, for comparison with the

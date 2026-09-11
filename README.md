@@ -83,9 +83,25 @@ curl "https://realized.drainfun.xyz/api/simulate-exit/0x88e6a0c2ddd26feeb64f039a
 ```
 
 Same math as `position_realized`, reframed around the moment of deciding: net dollars on a
-stated stake, today. `gas` and `slippage` are **always** returned as `unavailable` with a
-reason — we hold a 1inch spot-price key, not a verified swap-quote/gas-estimate endpoint, and
-we will not invent either figure for a number this close to someone's actual money.
+stated stake, today — now including what it actually costs to get out.
+
+**Gas is measured.** Live gas price from 1inch × estimated units for `decreaseLiquidity` +
+`collect` (~270k), priced in the chain's native token. The price is live; the units are an
+estimate, so the figure ships with `isEstimate: true` rather than posing as exact.
+
+**Slippage on a plain close is zero — and that zero is measured, not missing.** Closing a v3
+position isn't a swap: you get *both* tokens back at the current tick, so there's no price
+impact. Slippage only appears if you then consolidate into one token:
+
+```bash
+curl "https://realized.drainfun.xyz/api/simulate-exit/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640?entry=2026-07-28&stake=25000&consolidate=true"
+```
+
+That estimate is an explicit **lower bound** — modelled against total pool TVL, while a
+concentrated pool's depth at the active tick is thinner, so real impact is likely higher.
+
+`netAfterCostsUsd` is `null` unless *both* costs are known. A partial subtraction dressed as a
+complete number is the exact defect this project exists to expose.
 
 ### Your real range, not an assumed one
 

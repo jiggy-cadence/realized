@@ -31,7 +31,7 @@ import {
 import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
 import { VENUES, subgraphId, venueList } from '../lib/venues.js';
 import { fetchWalletPositions, describePosition, WALLET_LIMITS } from '../packages/core/src/wallet.js';
-import { crossCheckPrice } from '../packages/core/src/oneinch.js';
+import { crossCheckPrice, exitGasCost } from '../packages/core/src/oneinch.js';
 
 // 1inch key is optional. Present -> position responses carry an independent price cross-check.
 // Absent -> the field says so honestly. Same on-disk pattern as the Graph key.
@@ -252,7 +252,7 @@ async function liveWallet(owner, { dex = 'uniswap-v3', chain = 'mainnet', includ
  * calls the SAME fetchPoolFrom this file already uses, then simulateExit instead of
  * positionRealized. One fetch, two framings of the same verified numbers.
  */
-async function liveSimulateExit(poolId, { entry, range = 2, stake = 10_000 } = {}, dex = 'uniswap-v3', chain = 'mainnet') {
+async function liveSimulateExit(poolId, { entry, range = 2, stake = 10_000, consolidate = false } = {}, dex = 'uniswap-v3', chain = 'mainnet') {
   const id = subgraphId(dex, chain);
   if (!id) return { error: `unknown venue ${dex}/${chain}` };
   if (!entry) return { error: 'entry is required, e.g. ?entry=2026-08-01 (ISO date or unix timestamp)' };
@@ -270,7 +270,11 @@ async function liveSimulateExit(poolId, { entry, range = 2, stake = 10_000 } = {
 
   const pool = await fetchPoolFrom(gatewayUrl(API_KEY, id), poolId, ts);
   if (!pool) return { error: `pool ${poolId} not found on ${dex}/${chain}` };
-  return simulateExit(pool, range, stakeUsd);
+  // Live gas, fetched server-side. 1inch blocks direct curl/python clients at the Cloudflare
+  // layer (error 1010), so this is the only path that actually reaches the endpoint -- and it
+  // degrades honestly to { available:false, reason } rather than guessing a cost.
+  const gas = await exitGasCost({ chain, apiKey: ONEINCH_KEY });
+  return simulateExit(pool, range, stakeUsd, { gas, consolidate });
 }
 
 async function liveAudit({ limit = 250, days = 30, dex = 'uniswap-v3', chain = 'mainnet' } = {}) {
@@ -389,10 +393,11 @@ const server = createServer(async (req, res) => {
       const entry = url.searchParams.get('entry') || '';
       const range = Number(url.searchParams.get('range') || 2);
       const stake = Number(url.searchParams.get('stake') || 10_000);
+      const consolidate = url.searchParams.get('consolidate') === 'true';
       const dex = url.searchParams.get('dex') || 'uniswap-v3';
       const chain = url.searchParams.get('chain') || 'mainnet';
-      const out = await cached('pool', `exit|${dex}|${chain}|${poolId.toLowerCase()}|${entry}|${range}|${stake}`,
-        () => liveSimulateExit(poolId, { entry, range, stake }, dex, chain));
+      const out = await cached('pool', `exit|${dex}|${chain}|${poolId.toLowerCase()}|${entry}|${range}|${stake}|${consolidate}`,
+        () => liveSimulateExit(poolId, { entry, range, stake, consolidate }, dex, chain));
       return json(res, out.error ? 400 : 200, out);
     }
 

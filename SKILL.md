@@ -150,11 +150,28 @@ percent since entry.
 curl -s "https://realized.drainfun.xyz/api/simulate-exit/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640?entry=2026-07-28&range=2&stake=25000"
 ```
 
-`gas` and `slippage` are **always** `{ unavailable: true, reason }`, never a guessed dollar
-figure — this server holds a 1inch **spot price** key, not a verified swap-quote or gas-estimate
-endpoint, and inventing either would reproduce the fabricated-precision defect this project
-exists to expose, aimed at someone's actual exit decision. If `outOfRange` is true, say plainly
-that the loss is locked in regardless of timing — waiting does not un-realize it.
+**Gas is real.** Live gas price from 1inch × estimated gas units for `decreaseLiquidity` +
+`collect` (~270k), priced in the chain's native token. The *price* is measured; the *units* are
+an estimate, so the response carries `isEstimate: true` and you should report the dollar figure
+as approximate. It degrades to `{ available: false, reason }` rather than guessing.
+
+**Slippage is zero for a plain close, and that zero is measured, not missing.** Closing a v3
+position is not a swap — `decreaseLiquidity` + `collect` returns *both* tokens at the current
+tick, so there is no price impact. Slippage only exists if the holder then chooses to swap one
+side into the other:
+
+```bash
+curl -s "https://realized.drainfun.xyz/api/simulate-exit/0x88e6...5640?entry=2026-07-28&stake=25000&consolidate=true"
+```
+
+With `consolidate=true` the estimate is an explicit **lower bound**: impact is modelled against
+total pool TVL, but a concentrated pool's depth at the active tick is thinner than its TVL, so
+real impact is likely higher. Say "at least," never "exactly."
+
+`netAfterCostsUsd` is populated **only** when both gas and slippage are known, and is `null`
+otherwise — a partial subtraction presented as a complete figure is the same defect this project
+exists to expose. If `outOfRange` is true, say plainly that the loss is locked in regardless of
+timing — waiting does not un-realize it.
 
 ## Reporting rules (these matter more than the numbers)
 

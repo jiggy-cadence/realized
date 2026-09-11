@@ -121,12 +121,13 @@
         "tags": ["measurement"],
         "operationId": "simulateExit",
         "summary": "Decision support: what would closing this position TODAY actually net, in dollars?",
-        "description": "Not a new claim \u2014 calls the identical position_realized math and reframes it around the question a holder has at the moment of deciding whether to exit: dollars on a stated stake, not just percentages since entry. gas and slippage are ALWAYS returned as unavailable with a stated reason: this server holds a 1inch SPOT PRICE key, not a verified swap-quote or gas-estimate endpoint, and guessing either would reproduce the fabricated-precision defect this project exists to expose, aimed at someone's actual exit decision. If outOfRange is true, the loss is locked in regardless of timing.",
+        "description": "Not a new claim \u2014 calls the identical position_realized math and reframes it around the question a holder has at the moment of deciding whether to exit: dollars on a stated stake, not just percentages since entry.\n\nGAS is real: live gas price from 1inch \u00d7 estimated gas units for decreaseLiquidity + collect (~270k). The price is measured, the units are an estimate, so the dollar figure is approximate and labelled isEstimate.\n\nSLIPPAGE: closing a v3 position is NOT a swap. decreaseLiquidity + collect returns BOTH tokens at the current tick, so price impact is a measured ZERO \u2014 not an unavailable field. Slippage applies only if you then choose to swap one side into the other; pass consolidate=true for that case, where the estimate is an explicit LOWER BOUND (modelled against total pool TVL, while a concentrated pool's depth at the active tick is thinner).\n\nnetAfterCostsUsd is populated only when BOTH gas and slippage are known, and is null otherwise rather than a partial subtraction presented as a complete figure. If outOfRange is true, the loss is locked in regardless of timing.",
         "parameters": [
           { "$ref": "#/components/parameters/PoolId" },
           { "name": "entry", "in": "query", "required": true, "schema": { "type": "string", "format": "date" }, "example": "2026-07-28", "description": "Entry date, YYYY-MM-DD." },
           { "name": "range", "in": "query", "required": false, "schema": { "type": "number", "default": 2 }, "description": "Range width the LP actually set. Get the real one from /api/wallet/{address}." },
           { "name": "stake", "in": "query", "required": false, "schema": { "type": "number", "default": 10000 }, "description": "Position size in USD, for a dollar answer instead of only percentages." },
+          { "name": "consolidate", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "Set true ONLY if you intend to swap one token into the other after closing. Closing alone is not a swap and costs zero slippage." },
           { "$ref": "#/components/parameters/Dex" },
           { "$ref": "#/components/parameters/Chain" }
         ],
@@ -301,8 +302,25 @@
           "netUsd": { "type": "number", "description": "What the stake would be worth net of fees and impermanent loss, excluding gas and slippage." },
           "netPct": { "type": "number" },
           "outOfRange": { "type": "boolean" },
-          "gas": { "type": "object", "properties": { "unavailable": { "type": "boolean", "enum": [true] }, "reason": { "type": "string" } }, "description": "Always unavailable: no verified gas-estimate endpoint is wired. Never a guessed value." },
-          "slippage": { "type": "object", "properties": { "unavailable": { "type": "boolean", "enum": [true] }, "reason": { "type": "string" } }, "description": "Always unavailable: no verified swap-quote endpoint is wired. Never a guessed value." },
+          "gas": { "type": "object", "description": "Live gas price \u00d7 estimated gas units, priced in the chain's native token. Degrades to { available:false, reason } rather than guessing.", "properties": {
+            "available": { "type": "boolean" },
+            "costUsd": { "type": "number" },
+            "gasPriceGwei": { "type": "number", "description": "Measured live." },
+            "gasUnits": { "type": "number", "description": "Estimated, not measured: decreaseLiquidity ~150k + collect ~120k." },
+            "nativeTokenUsd": { "type": "number" },
+            "isEstimate": { "type": "boolean" },
+            "reason": { "type": "string", "description": "Present when available is false." }
+          } },
+          "slippage": { "type": "object", "description": "Zero and MEASURED for a plain close; a lower-bound ESTIMATE when consolidate=true.", "properties": {
+            "available": { "type": "boolean" },
+            "measured": { "type": "boolean", "description": "true means a genuine zero (closing is not a swap), not a missing value." },
+            "slippagePct": { "type": "number" },
+            "costUsd": { "type": "number" },
+            "isEstimate": { "type": "boolean" },
+            "assumesConsolidationToOneToken": { "type": "boolean" },
+            "note": { "type": "string" }
+          } },
+          "netAfterCostsUsd": { "type": ["number", "null"], "description": "Null unless BOTH gas and slippage are known. Never a partial subtraction." },
           "verdict": { "type": "string" }
         }
       },
