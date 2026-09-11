@@ -191,3 +191,23 @@ Judges see a hundred projects claiming alpha. This is the slide that separates y
 > are in the README.
 
 Answering that last one straight is worth more than dodging it.
+
+**"Can you show what an LP actually EARNED, not just what was claimed?"** — likely question, have this ready
+> Partly, and we know exactly how far. Three routes, all checked live:
+> - `collectedFees*` on the Position entity looks like earnings and isn't — it's a *withdrawal*
+>   record, only populated when the LP calls `collect()`. 71 of 150 positions reading “0 collected”
+>   had real accrued fees. That's why we refuse to print $0.
+> - `collect` **events** would be ideal — timestamped, with USD amounts. They're in the schema but
+>   **not populated** in this subgraph. Confirmed with a control: `mints` and `burns` returned rows
+>   in the same query where `collects` returned zero.
+> - **`positionSnapshot` deltas do work.** Snapshots are written when a position changes, so the
+>   change in `collectedFees` between two snapshots is a real, timestamped earnings figure.
+>   Measured on 1,000 live snapshots: 818 distinct positions, **135 of them (16.5%) have 2+
+>   snapshots**. For those, we can show what was actually collected.
+>
+> So it's a **coverage problem, not a dead end**: real earnings for roughly 1 in 6 positions.
+> We haven't shipped it because a number that works 16% of the time, presented as if it works
+> always, is the exact defect this project exists to expose. Next step is shipping it **behind a
+> coverage gate** — the real figure where snapshots exist, the honest refusal everywhere else.
+
+That answer is strong *because* it ends in a limit. Don't round it up to “yes we can.”
