@@ -29,6 +29,14 @@ Requirement: 2–4 min. We aim ~2:00 — judges watch ~40 of these. Short and de
 
 > "This is the biggest pool on Uniswap v3. USDC/WETH, four hundred million dollars in it.
 > The interface advertises **plus zero point six five percent APR**.
+
+<!-- v4 NOTE (added 2026-09-11): the wallet box now searches Uniswap v3 AND v4 together. If you
+     demo a wallet read, see the "Uniswap v4" beat in SHOT-LIST.md / TALKING-POINTS.md. Two hard
+     rules when narrating it: (1) do NOT call the reconstruction novel math -- summing signed
+     deltas is bookkeeping; the defensible claim is that event-derived state is a strictly weaker
+     evidence class than a state read and we detect where it's weaker. (2) v4 returns the range
+     and in/out-of-range only -- we deliberately refuse realized return and exit pricing there,
+     and /api/venues publishes realizedReturn:false so an agent checks instead of assuming. -->
 >
 > Anyone who put a hundred grand in thirty days ago is **down about three thousand dollars**."
 

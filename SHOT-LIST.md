@@ -96,6 +96,17 @@ Point down the column: **59.1% → 45.4% → 36.0% → 25.6%**
 > bounds. And concentrated liquidity is *why* the defect exists — range width drives
 > impermanent loss."
 
+**Uniswap v4 — the part that shows we didn't just wrap v3** (optional, ~15s; strong if time allows)
+> "Paste an address and it searches v3 **and** v4 — you don't pick a version. But v4 is a
+> different *kind* of answer: its Position entity has no tick range at all, so we rebuild the
+> range by replaying `ModifyLiquidity` events. That gives us the range — and it does **not**
+> support exit pricing, so we refuse to compute one. The API publishes
+> `realizedReturn: false` for v4 so an agent checks instead of assuming."
+
+> **Do not say "novel math."** Summing signed deltas is bookkeeping. The claim that survives a
+> skeptical judge is: *event-derived state is a strictly weaker evidence class than a state read,
+> and we detect exactly where it's weaker.*
+
 **1inch — the second opinion**
 > "An instrument that grades others has to be graded too. 1inch has never seen our subgraph.
 > **99.2% agreement, median divergence 0.078%.**"

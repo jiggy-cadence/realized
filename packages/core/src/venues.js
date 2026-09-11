@@ -38,22 +38,37 @@ export const VENUES = {
 export const CAPABILITIES = {
   'uniswap-v3': {
     source: 'position-state',
+    poolAnalytics: true,
+    walletLookup: true,
     realRange: true,
     realizedReturn: true,
     exitSimulation: true,
   },
   'uniswap-v4': {
     source: 'event-reconstruction',
+    poolAnalytics: true,
+    walletLookup: true,
     realRange: true,
     realizedReturn: false,
     exitSimulation: false,
     why: 'The v4 Position entity carries no tick range; ranges are reconstructed from ModifyLiquidity events. Reconstructed liquidity cannot support exit pricing.',
   },
+  // Aerodrome is POOL-LEVEL ONLY. Its pool analytics are real (it ships in the pool table with
+  // live TVL and verdicts), but its subgraph exposes no per-owner Position entity, so
+  // /api/wallet returns an explicit error for it.
+  //
+  // CORRECTED 2026-09-11: this entry previously claimed realizedReturn/exitSimulation/realRange
+  // true with no walletLookup field at all, which read as "wallet lookup works here" while the
+  // code refused it. The capability map and the endpoint contradicted each other and the map was
+  // the one lying. Verified by calling ?dex=aerodrome for two addresses: both error.
   aerodrome: {
-    source: 'position-state',
-    realRange: true,
-    realizedReturn: true,
-    exitSimulation: true,
+    source: 'pool-only',
+    poolAnalytics: true,
+    walletLookup: false,
+    realRange: false,
+    realizedReturn: false,
+    exitSimulation: false,
+    why: 'Aerodrome pool analytics are supported, but its subgraph exposes no per-owner Position entity, so wallet-level position lookup is not available.',
   },
 };
 
