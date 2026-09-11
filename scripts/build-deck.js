@@ -182,8 +182,34 @@ slides.push(`
       <code>@realized-lp/core</code>
     </div>
   </div>
-  <p class="note">Built on <b>The Graph decentralized network</b> — Uniswap v3 and Aerodrome subgraphs across ${esc(hist.chainsMeasured.join(', '))}. Every figure on this page regenerates from live subgraph data; nothing is mocked or checked in as a static answer.</p>
   <p class="note"><b>A test vector ships in the API response.</b> Real pool, real inputs, real output — implement the formula, run it on those inputs, and check you match before trusting your own math. An agent shouldn't have to take our word for it.</p>
+</section>`);
+
+// SLIDE 4b — BUILT ON. Each integration stated as the job it does, not as a logo.
+// Uniswap was the gap: it was present only as a pool label and inside a subgraph list,
+// so it read as a data source rather than the thing every entity on the site comes from.
+slides.push(`
+<section class="slide" id="s4b">
+  <div class="kicker">Built on</div>
+  <h2>Three integrations, each doing a job the project could not do without.</h2>
+  <div class="cols">
+    <div class="col">
+      <h3>The Graph — the dataset</h3>
+      <p>Per-day <code>feesUSD</code> are <b>indexer-derived aggregates that exist nowhere on-chain</b>. There is no RPC path to this data: you cannot ask a node what an LP earned last Tuesday. Without the decentralized network this measurement is not merely harder, it is impossible.</p>
+      <code>${esc(hist.chainsMeasured.join(' · '))}</code>
+    </div>
+    <div class="col">
+      <h3>Uniswap v3 — what we measure</h3>
+      <p>Every number here is a Uniswap v3 entity. <code>poolDayData</code> gives the fee and price history; the <b>Position NFT</b> gives real <code>tickLower</code>/<code>tickUpper</code>, so pasting an address reads <b>the band an LP actually set</b> instead of assuming ±2×. Concentrated liquidity is also <i>why</i> the defect exists — range width drives impermanent loss.</p>
+      <code>Position · poolDayData</code>
+    </div>
+    <div class="col">
+      <h3>1inch — the second opinion</h3>
+      <p>An instrument that grades others must be graded too. The <b>Spot Price Aggregator</b> has never seen our subgraph, so every pool price gets an independent check${pricecheck ? ` — <b>${pricecheck.agreementPct.toFixed(1)}% agree, median divergence ${pricecheck.medianAbsDivergencePct.toFixed(3)}%</b>` : ''}. It audits <i>our</i> price leg, which is the half of realized return we don't get from fees.</p>
+      <code>Spot Price Aggregator</code>
+    </div>
+  </div>
+  <p class="note">Built on <b>The Graph decentralized network</b> — Uniswap v3 and Aerodrome subgraphs across ${esc(hist.chainsMeasured.join(', '))}. Every figure regenerates from live subgraph data; <b>nothing is mocked or checked in as a static answer</b>. No API key is required to use any of it — the server proxies its own.</p>
 </section>`);
 
 // SLIDE 5 — THE REFUTATION. Non-negotiable slide.
