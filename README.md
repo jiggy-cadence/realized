@@ -4,6 +4,10 @@
 > display a loss. Realized computes the number that can: **fees + impermanent loss**, from The
 > Graph's historical `poolDayData`. Live site: **[realized.drainfun.xyz](https://realized.drainfun.xyz)**
 > · library: `packages/core` · MCP server: `bin/mcp-server.js` (7 tools)
+>
+> **Judging this?** [`FOR-JUDGES.md`](FOR-JUDGES.md) is the one-page version: problem, method,
+> key numbers with their ranges, what refuses to produce a number, what we deliberately did
+> *not* ship, and a 30-second reproduction.
 
 **The problem.** You provide liquidity, the dashboard says +12% APR, and months later your
 position is worth less than if you had done nothing. The dashboard was not lying about fees —
