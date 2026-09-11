@@ -36,11 +36,18 @@ const PAGE = 1000;
  * Completeness matters: a missed page silently understates liquidity, and the sum still
  * *looks* plausible. That is the failure mode this pagination shape exists to prevent.
  */
-export async function fetchModifyLiquidity(query, url, owner, { max = 5000 } = {}) {
+export async function fetchModifyLiquidity(query, url, owner, { max = 60000 } = {}) {
   const who = String(owner).toLowerCase();
   const out = [];
   let lastId = '';
   let pages = 0;
+
+  // Cursor pagination on `id_gt` has no skip ceiling, so the only reason for a cap is to bound
+  // worst-case work -- not because 5000 was a real limit. It was raised from 5000 to 60000 after
+  // measuring: at PAGE=1000 the busiest sampled wallet needed 6 pages (5205 events) and finished
+  // in ~4s, so the old cap was truncating wallets we could trivially finish. `max` is now a
+  // runaway guard, not a routine outcome. Truncation still fails the audit and withholds
+  // positions -- see auditReconstruction/event_history_complete.
 
   for (;;) {
     const gql = `{
@@ -73,6 +80,12 @@ export async function fetchModifyLiquidity(query, url, owner, { max = 5000 } = {
     lastId = rows[rows.length - 1].id;
     if (out.length >= max) {
       return { events: out, complete: false, pages, truncatedAt: max };
+    }
+    // Defensive: a non-advancing cursor would spin forever. Cannot happen while rows.length
+    // === PAGE and ids are unique+ascending, but a subgraph that ever returned a duplicate
+    // page would hang the request rather than fail it, and a hang is worse than an error.
+    if (!lastId) {
+      return { events: out, complete: false, pages, truncatedAt: out.length };
     }
   }
   return { events: out, complete: true, pages, truncatedAt: null };
