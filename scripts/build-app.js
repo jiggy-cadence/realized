@@ -223,6 +223,35 @@ h1 em{color:var(--acc);font-style:normal}
 .exbtn{background:#1a212a;border:1px solid var(--line);color:var(--fg);border-radius:999px;padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer;transition:border-color .15s,color .15s}
 .exbtn:hover{border-color:var(--acc);color:var(--acc)}
 
+/* --- wallet lookup: the one input that removes an ASSUMPTION ------------------------------
+   Every realized number above assumes a +/-2x band, because pool-level data cannot know your
+   position. An address can: we read the real tick range off the Position entity. This is
+   read-only -- an address in a text box, no signing, no wallet extension, no connect button
+   that asks for permissions we do not need. --- */
+.wal{margin:14px 0 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;scroll-margin-top:16px}
+.wal-row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+#waddr{flex:1 1 320px;min-width:0;background:#0d131a;border:1.5px solid var(--line);border-radius:12px;color:var(--fg);font:inherit;font-size:15px;padding:13px 14px;outline:0;transition:border-color .15s;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+#waddr:focus{border-color:var(--acc)}
+#waddr::placeholder{color:#4b5560;font-family:inherit}
+.wal-go{flex:0 0 auto;background:var(--acc);border:0;color:#150c08;font:inherit;font-weight:750;font-size:14px;padding:0 22px;border-radius:12px;cursor:pointer;transition:filter .15s}
+.wal-go:hover{filter:brightness(1.12)}
+.wal-go:disabled{opacity:.5;cursor:default}
+.wal-out{margin-top:16px}
+.wpos{background:#0d141b;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+.wpos-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+.wpos-pair{font-weight:750;font-size:15.5px;letter-spacing:-.01em}
+.wpos-tag{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:2px 7px;font-weight:700}
+.wpos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px}
+.wpos-k{font-size:11px;color:var(--dim);letter-spacing:.03em;margin-bottom:2px}
+.wpos-v{font-size:14px;font-variant-numeric:tabular-nums;font-weight:650}
+.wpos-note{color:#5f6a75;font-size:12px;margin:10px 0 0;line-height:1.55}
+/* The honest-gap styling. Uncollected fees are NOT $0 and must not look like a number. */
+.wpos-unk{color:#8b949e;font-style:italic;font-size:13px;font-weight:500}
+.wal-limits{margin-top:14px;border-top:1px solid var(--line);padding-top:13px;color:#5f6a75;font-size:12px;line-height:1.6}
+.wal-limits b{color:#8b949e}
+.wal-err{color:#ff6b6b;font-size:13.5px;margin-top:12px}
+@media(max-width:620px){.wal-go{flex:1 1 100%;padding:13px 22px}}
+
 /* --- search-first: this is the primary control, not the range slider --- */
 .searchwrap{position:relative;margin:0}
 .searchbox{display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:4px 4px 4px 16px;transition:border-color .15s}
@@ -399,6 +428,16 @@ ${shock ? `
     <button class="exbtn" data-ex="WBTC/WETH">WBTC/WETH</button>
     <button class="exbtn" data-ex="PEPE">PEPE/WETH</button>
   </div>
+</div>
+
+<div class="wal" id="wal">
+  <div class="ask-title">Or paste an address — we read your real range</div>
+  <p class="ask-hint" style="margin:-6px 0 13px">Read-only. No signing, no wallet connection, no permissions. Everything above assumes a &plusmn;2x band; an address lets us use the range you actually set.</p>
+  <div class="wal-row">
+    <input id="waddr" type="text" placeholder="0x\u2026 (Uniswap v3, mainnet)" autocomplete="off" spellcheck="false">
+    <button class="wal-go" id="wgo">Read positions</button>
+  </div>
+  <div class="wal-out" id="wout"></div>
 </div>
 
 <div id="card"></div>
@@ -1015,6 +1054,119 @@ document.querySelectorAll('th').forEach(t=>t.onclick=()=>{
   const k=t.dataset.k; if(k===sortKey) sortDir*=-1; else {sortKey=k; sortDir=k==='pair'?1:-1;} renderTable();
 });
 renderTable();
+
+// ---------- wallet: read an address's REAL ranges ----------------------------------------
+// The point of this control is removing an assumption, not adding a dashboard. Everything
+// else on this page assumes +/-2x because pool-level data cannot know your position.
+//
+// Two display rules that are not cosmetic:
+//   1. Uncollected fees render as words, never \$0. collectedFees* only populates on an
+//      explicit collect(); of 150 sampled positions with it at zero, 71 had non-zero fee
+//      growth. A \$0 here would be a number whose label lies -- the exact defect this page
+//      is about, aimed at the visitor's own money.
+//   2. Effectively-full-range positions say "full range", never "+/-1e26x". That is a
+//      classification (>=90% of tick space, where concentrated IL and full-range IL agree
+//      to 0.00pp), not a clamp on an ugly number.
+const wAddrEl=document.getElementById('waddr'), wGoEl=document.getElementById('wgo'), wOutEl=document.getElementById('wout');
+const esc=(s)=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const shortAddr=(a)=>a.slice(0,6)+'\u2026'+a.slice(-4);
+
+function rangeLabel(r){
+  if(!r) return {text:'unknown range', tag:''};
+  if(r.fullRange) return {text:'Full range', tag:'v2-equivalent'};
+  const w=r.widthX;
+  if(w===null||!isFinite(w)) return {text:'unknown range', tag:''};
+  // DISPLAY rule, distinct from the CLASSIFIER. Fixing the classifier (spanFrac) was correct
+  // and did NOT fix this: a position can legitimately be a finite band -- not full-range by
+  // the 90%-of-tick-space test -- and still have widthX in the billions. "+/-995707471x band"
+  // is arithmetically true and communicates nothing. Above ~1000x the exact multiple carries
+  // no information a reader can use, so say what it MEANS instead of printing the digits.
+  if(w>=1000) return {text:'Very wide band', tag:'spans '+(r.spanFrac!=null?Math.round(r.spanFrac*100)+'% of price space':'most of price space')};
+  const span=w*w;
+  const txt=span<10?span.toFixed(2)+'x low-to-high':Math.round(span)+'x low-to-high';
+  return {text:'\u00b1'+ (w<10?w.toFixed(2):Math.round(w)) +'x band', tag:txt};
+}
+
+// Token amounts arrive as raw integer strings (wei-scale). Without applying decimals a
+// routine fee shows as 1,382,961,847,474,539,500,000 -- a number that is both unreadable and
+// wrong by 18 orders of magnitude. The subgraph gives us decimals; use them.
+function tokenAmt(raw, decimals){
+  const v=Number(raw||0);
+  if(!isFinite(v)||v===0) return '0';
+  const d=Number(decimals);
+  const scaled=isFinite(d)&&d>0?v/Math.pow(10,d):v;
+  if(scaled>0&&scaled<0.0001) return '<0.0001';
+  return scaled.toLocaleString('en-US',{maximumFractionDigits:scaled<1?6:4});
+}
+
+// TVL that is real but tiny must not read like a fabricated zero. A dust pool is a finding
+// about the position, so name it rather than printing "$0"-shaped text next to fee figures.
+function tvlLabel(v){
+  if(v===null||v===undefined) return '\u2014';
+  if(v<1) return '<$1 \u2014 dust pool';
+  if(v<1000) return '$'+Math.round(v).toLocaleString('en-US')+' \u2014 dust pool';
+  return '$'+Math.round(v).toLocaleString('en-US');
+}
+
+function feeLine(f,p){
+  if(!f) return '<span class="wpos-unk">not reported</span>';
+  if(f.measurable){
+    return tokenAmt(f.collectedToken0,p&&p.token0Decimals)+' / '+tokenAmt(f.collectedToken1,p&&p.token1Decimals)
+      +' <span class="wpos-unk">collected</span>';
+  }
+  if(f.basis==='earned-but-uncollected') return '<span class="wpos-unk">earned, never collected \u2014 not measurable</span>';
+  return '<span class="wpos-unk">none recorded</span>';
+}
+
+function renderWallet(d){
+  if(d.error){ wOutEl.innerHTML='<div class="wal-err">'+esc(d.error)+'</div>'; return; }
+  if(!d.openPositions){
+    wOutEl.innerHTML='<div class="wpos-note">No open Uniswap v3 positions on mainnet for '+esc(shortAddr(d.owner))+'. Closed positions are excluded \u2014 they have no live range to reason about.</div>';
+    return;
+  }
+  const rows=d.positions.map(p=>{
+    const rl=rangeLabel(p.range);
+    // The actionable link: this position's REAL width, handed to the position endpoint.
+    const w=p.range&&!p.range.fullRange&&p.range.widthX?p.range.widthX:null;
+    const href='/api/position/'+encodeURIComponent(p.poolId)+'?entry=' + ENTRY_DEFAULT + (w?'&range='+encodeURIComponent(w.toFixed(4)):'&range=1e8');
+    return '<div class="wpos">'
+      +'<div class="wpos-top"><span class="wpos-pair">'+esc(p.pair)+'</span>'
+      +(p.feeTierPct!==null?'<span class="wpos-tag">'+p.feeTierPct+'% fee</span>':'')
+      +'<span class="wpos-tag">'+esc(rl.text)+'</span>'
+      +(rl.tag?'<span class="wpos-tag">'+esc(rl.tag)+'</span>':'')
+      +'</div>'
+      +'<div class="wpos-grid">'
+      +'<div><div class="wpos-k">Pool TVL</div><div class="wpos-v">'+tvlLabel(p.poolTvlUsd)+'</div></div>'
+      +'<div><div class="wpos-k">Fees (token0 / token1)</div><div class="wpos-v">'+feeLine(p.fees,p)+'</div></div>'
+      +'<div><div class="wpos-k">Realized at YOUR range</div><div class="wpos-v"><a href="'+href+'" target="_blank" rel="noopener" style="color:var(--acc);text-decoration:none">compute \u2192</a></div></div>'
+      +'</div></div>';
+  }).join('');
+  const lim=d.limits||{};
+  wOutEl.innerHTML=rows
+    +'<div class="wal-limits"><b>What we do not report, and why.</b> '+esc(lim.why||'')+'</div>';
+}
+
+const ENTRY_DEFAULT=(()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toISOString().slice(0,10);})();
+
+async function lookupWallet(){
+  const a=(wAddrEl.value||'').trim();
+  if(!/^0x[0-9a-fA-F]{40}$/.test(a)){
+    wOutEl.innerHTML='<div class="wal-err">That does not look like an address \u2014 expected 0x followed by 40 hex characters.</div>';
+    return;
+  }
+  wGoEl.disabled=true; wGoEl.textContent='Reading\u2026';
+  wOutEl.innerHTML='<div class="wpos-note">Fetching positions live from The Graph\u2026</div>';
+  try{
+    const r=await fetch('/api/wallet/'+encodeURIComponent(a));
+    renderWallet(await r.json());
+  }catch(e){
+    wOutEl.innerHTML='<div class="wal-err">Lookup failed: '+esc(e.message||String(e))+'</div>';
+  }finally{
+    wGoEl.disabled=false; wGoEl.textContent='Read positions';
+  }
+}
+wGoEl.onclick=lookupWallet;
+wAddrEl.onkeydown=(e)=>{ if(e.key==='Enter') lookupWallet(); };
 </script>
 </body></html>`;
 

@@ -201,6 +201,12 @@ export function describePosition(p) {
     owner: p.owner,
     pair: `${p.token0?.symbol ?? '?'}/${p.token1?.symbol ?? '?'}`,
     poolId: p.pool?.id,
+    // Token decimals travel WITH the amounts. collectedFees* are raw integer strings; without
+    // the scale a routine fee renders as 1,382,961,847,474,539,500,000 -- unreadable and wrong
+    // by 18 orders of magnitude. Any consumer formatting these needs the divisor in the same
+    // payload, or it will guess.
+    token0Decimals: p.token0?.decimals != null ? Number(p.token0.decimals) : null,
+    token1Decimals: p.token1?.decimals != null ? Number(p.token1.decimals) : null,
     feeTierPct: p.pool?.feeTier ? Number(p.pool.feeTier) / 10_000 : null,
     poolTvlUsd: p.pool?.totalValueLockedUSD ? Number(p.pool.totalValueLockedUSD) : null,
     liquidity: p.liquidity,
