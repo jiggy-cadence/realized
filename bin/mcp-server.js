@@ -22,10 +22,14 @@ const TOOLS = [
   {
     name: 'find_pool',
     description:
-      'Look up a pool by token symbols (e.g. "WETH/USDC" or just "WETH") instead of a raw 0x '
-      + 'address. Returns candidate pools ranked by TVL with their poolId, ready to pass into '
-      + 'realized_return or explain_gap. Use this FIRST -- you should never need to already know '
-      + 'a pool address to use this server.',
+      'START HERE when the user names tokens rather than an address. Resolves "WETH/USDC" or '
+      + '"PEPE" to concrete poolIds ranked by TVL.\n\n'
+      + 'WHEN TO USE: any request that mentions a pair or token but no 0x address.\n'
+      + 'NEXT STEP: pass matches[0].poolId into position_realized (if the user gave an entry date) '
+      + 'or realized_return (for a recent-window average).\n'
+      + 'RETURNS: { query, source: "cache"|"live:uniswap-v3/mainnet", matches: [{pair, poolId, tvl, fee}] }.\n'
+      + 'EMPTY RESULT: matches:[] means no match in the cached corpus or a live mainnet lookup -- tell '
+      + 'the user the pair was not found; do NOT guess an address.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -38,10 +42,16 @@ const TOOLS = [
   {
     name: 'realized_return',
     description:
-      'What LPs ACTUALLY earned in a Uniswap v3 pool over a historical window: fee income minus '
-      + 'impermanent loss, from The Graph. Compares against the fees-only APR that DEX UIs advertise '
-      + '(which cannot go negative by construction). Returns measurable:false rather than a fake zero '
-      + 'when the window cannot be priced.',
+      'What the AVERAGE LP earned in a pool over a recent trailing window: fee income PLUS impermanent '
+      + 'loss (IL is <= 0), from The Graph. Compare against the fees-only APR a DEX advertises, which is '
+      + 'positive by construction and cannot report a loss.\n\n'
+      + 'WHEN TO USE: "is this pool profitable", "is this APR real" -- a question about the POOL.\n'
+      + 'WHEN NOT TO USE: the user has their own entry date -> use position_realized instead. That is a '
+      + 'different question and this tool will answer it wrongly.\n'
+      + 'RETURNS: { measurable, advertisedAprPct, feeReturnPct, impermanentLossPct, realizedReturnPct, realizedAprPct }.\n'
+      + 'HONESTY CONTRACT: measurable:false means the window could not be priced. Report it as '
+      + '"could not measure", NEVER as zero or "no loss". Always state the rangeWidthX you used -- the '
+      + 'same pool can be honest full-range and misleading at +/-1.25x.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -61,12 +71,19 @@ const TOOLS = [
   {
     name: 'position_realized',
     description:
-      'What YOU actually made on a SPECIFIC position: this pool, entered on this date, at this '
-      + 'concentrated range. Different from realized_return, which reports the average LP outcome '
-      + 'over a fixed recent window -- this anchors to an actual entry date, however long ago, and '
-      + 'is the tool to use when someone says "I put money into this pool on <date>, what have I '
-      + 'made since." Returns measurable:false rather than a fake number if fewer than 2 days of '
-      + 'data exist since entry.',
+      'THE MAIN TOOL for a real user with a real position. "I entered THIS pool on THIS date at THIS '
+      + 'range -- what have I actually made since?" Anchors to a calendar entry date, not a fixed lookback.\n\n'
+      + 'WHEN TO USE: the user mentions when they entered, or says "my position" / "I put money in".\n'
+      + 'GET THE RANGE RIGHT: if you have their wallet address, call the /api/wallet/{address} HTTP '
+      + 'endpoint first and use the real range.widthX from their Position NFT. Assuming +/-2x when the '
+      + 'actual band is different produces a confidently wrong number.\n'
+      + 'RETURNS: { measurable, pair, entryDate, daysHeld, entryPrice, currentPrice, feeReturnPct, '
+      + 'impermanentLossPct, realizedReturnPct, realizedAprPct, outOfRange, dailySeries[] }.\n'
+      + 'HONESTY CONTRACT: fewer than 2 days since entry returns measurable:false -- there is nothing to '
+      + 'measure yet and 0% is not the honest answer. If outOfRange is true the loss is REALIZED, not '
+      + 'impermanent: say so, it changes the advice.\n'
+      + 'DO NOT annualize realizedReturnPct yourself for short holds. A 30-day -81% loss annualizes to '
+      + '-988%, which cannot happen -- an LP cannot lose more than the stake.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -85,9 +102,14 @@ const TOOLS = [
   {
     name: 'audit_pools',
     description:
-      'Audit many live pools at once: how many advertise a positive APR while LPs actually lost money. '
-      + 'Includes a self-canary (stable/stable pairs must show ~0 impermanent loss) and a sensitivity '
-      + 'table across three liveness gates, so a finding that only exists at one cutoff is visible as a parameter.',
+      'Corpus-wide sweep: across many live pools, how many advertise a positive APR while LPs actually '
+      + 'went backwards? Use for "how common is this" / "is this systemic" questions.\n\n'
+      + 'RETURNS: { pools, misleadingPct, canary:{pass, worstAbsIlPct}, sensitivity:[3 liveness gates] }.\n'
+      + 'CHECK THE CANARY BEFORE QUOTING ANY AGGREGATE. canary.pass=false means stable/stable pairs '
+      + 'failed to show ~0 impermanent loss, the instrument is unproven, and every number in that '
+      + 'response is untrusted. Say so rather than quoting it.\n'
+      + 'The sensitivity table reports the headline at three cutoffs. If the answer flips across them it '
+      + 'is a parameter, not a finding -- report it that way.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -98,7 +120,10 @@ const TOOLS = [
   },
   {
     name: 'explain_gap',
-    description: 'Plain-language verdict for one pool with the numbers that produced it.',
+    description:
+      'Plain-language verdict for ONE pool plus the evidence chain that produced it. Use when the user '
+      + 'wants the reasoning ("why is this pool misleading?"), not just the figure. Returns the verdict '
+      + 'with advertised vs realized and the gap in percentage points, phrased for a human.',
     inputSchema: {
       type: 'object',
       properties: { poolId: { type: 'string' }, days: { type: 'number', default: 30 } },
@@ -108,12 +133,18 @@ const TOOLS = [
   {
     name: 'rank_pools',
     description:
-      'THE ACTIONABLE ONE. Rank live pools by what LPs actually took home (fees + impermanent loss), '
-      + 'not by advertised APR, and label how trustworthy each advertised number has been. '
-      + 'This is what a yield dashboard or an allocating agent should call INSTEAD of sorting by APR. '
-      + 'Each pool carries a trustLabel: "historically honest" (advertised tracked reality within 2pts), '
-      + '"gap-prone" (real gap, sign intact), "routinely misleading" (advertised positive while LPs lost money), '
-      + 'or "unmeasurable" (never a fabricated zero). Sort by realized return, or screen out the liars.',
+      'Rank live pools by what LPs ACTUALLY took home (fees + impermanent loss) instead of by advertised '
+      + 'APR. This is what a yield dashboard or an allocating agent should call INSTEAD of sorting by APR.\n\n'
+      + 'THIS IS A TRACK RECORD, NOT A FORECAST. It reports what already happened over the measured '
+      + 'window. Do NOT present it to a user as a prediction of which pools will pay next. We tested '
+      + 'predictive selection directly: an apparent +1.64pp edge on one split failed a pre-registered bar '
+      + 'across 112 walk-forward windows, five times, and a noise decoy scored comparably. It was deleted '
+      + 'rather than shipped.\n'
+      + 'trustLabel values: "historically honest" (advertised tracked realized within 2pts), "gap-prone" '
+      + '(real gap, sign intact), "routinely misleading" (advertised positive while LPs lost money), '
+      + '"unmeasurable" (never a fabricated zero).\n'
+      + 'GOOD USE: screening OUT pools whose advertised number has been unreliable. That is avoidance, '
+      + 'which the data supports. Claiming the top row will pay best next month is not.',
     inputSchema: {
       type: 'object',
       properties: {
