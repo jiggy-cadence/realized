@@ -51,3 +51,9 @@ export { VENUES, subgraphId, venueList } from './venues.js';
 
 // -- Walk-forward / out-of-sample windows -------------------------------------------------
 export { scoreWindow, summarizeWindow } from './walkforward.js';
+
+// -- Wallet positions (read an address's real tick ranges) ---------------------------------
+// Deliberately does NOT export a per-position fee/P&L number: collectedFees* is a withdrawal
+// record, not an earnings record, and deposited* is lifetime cumulative rather than entry
+// state. See wallet.js header + WALLET-CONNECT-NOTES.md for the measurements.
+export { tickToPrice, tickRangeToWidth, fetchWalletPositions, describePosition, WALLET_LIMITS } from './wallet.js';

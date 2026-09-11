@@ -11,6 +11,7 @@
  */
 import { impermanentLossPct, scorePool, summarize, gatewayUrl, fetchTopPools, fetchPoolFrom, positionRealized, priceCollapsed, isLive, pearson, spearman } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
+import { tickToPrice, tickRangeToWidth, describePosition, fetchWalletPositions, EFFECTIVELY_FULL_RANGE_SPAN, TICK_MIN, TICK_MAX } from '../packages/core/src/wallet.js';
 
 let failed = 0;
 const check = (name, got, want, tol = 0.01) => {
@@ -162,6 +163,92 @@ console.log('\n--- positionRealized: hand-verified against a fabricated position
   const pos = positionRealized(rangeExit, 2);
   check('positionRealized flags outOfRange when price left the band', pos.outOfRange ? 1 : 0, 1, 0);
   check('positionRealized carries an outOfRangeNote when out of range', pos.outOfRangeNote === null ? 1 : 0, 0, 0);
+}
+
+console.log('\n--- wallet: tick -> range classification ---');
+// The bug this guards: an earlier version classified full-range ONLY by the literal +/-887272
+// rail ticks, so positions spanning most of tick space without touching the rails came back as
+// finite bands with widthX up to 1e26. Measured across 1000 live positions, above the span
+// threshold the concentrated IL and full-range IL agree to 0.00pp -- they ARE full-range.
+{
+  const rails = tickRangeToWidth(TICK_MIN, TICK_MAX);
+  check('rail-to-rail position is full-range', rails.fullRange ? 1 : 0, 1, 0);
+  check('rail-to-rail position is flagged onRails', rails.onRails ? 1 : 0, 1, 0);
+  check('full-range widthX is Infinity, not an overflowed finite number', Number.isFinite(rails.widthX) ? 1 : 0, 0, 0);
+
+  // Spans most of tick space but never touches a rail: the case the old detector got wrong.
+  const wide = tickRangeToWidth(-800000, 800000);
+  check('near-rail wide position is ALSO full-range (not a 1e26 band)', wide.fullRange ? 1 : 0, 1, 0);
+  check('near-rail wide position is NOT onRails', wide.onRails ? 1 : 0, 0, 0);
+
+  // Ordinary managed bands must stay finite and exact.
+  check('+/-2x band resolves to widthX 2', tickRangeToWidth(-6932, 6932).widthX, 2, 0.001);
+  check('+/-1.25x band resolves to widthX 1.25', tickRangeToWidth(-2231, 2231).widthX, 1.25, 0.001);
+  check('narrow band is not classified full-range', tickRangeToWidth(-6932, 6932).fullRange ? 1 : 0, 0, 0);
+  check('tickToPrice(0) is 1', tickToPrice(0), 1, 1e-12);
+
+  // A real position from the live corpus: huge span, but only 23% of tick space -> NOT full.
+  const xor = tickRangeToWidth(-414400, 0);
+  check('large-but-partial span stays a finite band', xor.fullRange ? 1 : 0, 0, 0);
+  check('large-but-partial span reports spanFrac below the threshold',
+    xor.spanFrac < EFFECTIVELY_FULL_RANGE_SPAN ? 1 : 0, 1, 0);
+
+  // Garbage in must not produce a confident number.
+  check('inverted tick range is rejected', tickRangeToWidth(100, 50) === null ? 1 : 0, 1, 0);
+  check('non-numeric tick range is rejected', tickRangeToWidth('abc', 'def') === null ? 1 : 0, 1, 0);
+}
+
+console.log('\n--- wallet: uncollected fees must NEVER render as $0 ---');
+// THE defect this project exists to expose, pointed at our own product. collectedFees* only
+// populates on an explicit collect(). Measured live: of 150 positions with collectedFeesToken0
+// == 0, SEVENTY-ONE had non-zero feeGrowthInside0LastX128 -- they earned fees and never
+// collected. Reporting $0 for those would be a metric whose label lies about what it measures.
+{
+  const earnedNotCollected = describePosition({
+    id: '1', owner: '0xabc', liquidity: '100',
+    tickLower: { tickIdx: '-6932' }, tickUpper: { tickIdx: '6932' },
+    collectedFeesToken0: '0', collectedFeesToken1: '0',
+    feeGrowthInside0LastX128: '123456789', feeGrowthInside1LastX128: '0',
+    depositedToken0: '10', depositedToken1: '0', withdrawnToken0: '0', withdrawnToken1: '0',
+    pool: { id: '0xpool', feeTier: '3000', totalValueLockedUSD: '1000000' },
+    token0: { symbol: 'A' }, token1: { symbol: 'B' },
+  });
+  check('earned-but-uncollected fees are NOT measurable', earnedNotCollected.fees.measurable ? 1 : 0, 0, 0);
+  check('earned-but-uncollected fees are labelled as such',
+    earnedNotCollected.fees.basis === 'earned-but-uncollected' ? 1 : 0, 1, 0);
+  check('earned-but-uncollected fees carry NO zero-valued fee figure',
+    earnedNotCollected.fees.collectedToken0 === undefined ? 1 : 0, 1, 0);
+  check('earned-but-uncollected fees state a reason',
+    typeof earnedNotCollected.fees.reason === 'string' && earnedNotCollected.fees.reason.length > 0 ? 1 : 0, 1, 0);
+
+  const trulyCollected = describePosition({
+    id: '2', owner: '0xabc', liquidity: '100',
+    tickLower: { tickIdx: '-6932' }, tickUpper: { tickIdx: '6932' },
+    collectedFeesToken0: '5.5', collectedFeesToken1: '2.25',
+    feeGrowthInside0LastX128: '999', feeGrowthInside1LastX128: '999',
+    depositedToken0: '10', depositedToken1: '5', withdrawnToken0: '0', withdrawnToken1: '0',
+    pool: { id: '0xpool', feeTier: '3000', totalValueLockedUSD: '1000000' },
+    token0: { symbol: 'A' }, token1: { symbol: 'B' },
+  });
+  check('actually-collected fees ARE measurable', trulyCollected.fees.measurable ? 1 : 0, 1, 0);
+  check('actually-collected fees report the collected amount', trulyCollected.fees.collectedToken0, 5.5, 0.001);
+  check('collected-fee basis is labelled "collected"', trulyCollected.fees.basis === 'collected' ? 1 : 0, 1, 0);
+
+  // deposited*/withdrawn* are lifetime cumulative. They must never be presented as entry state.
+  check('cumulative totals are namespaced away from entry value',
+    trulyCollected.cumulative && typeof trulyCollected.cumulative.note === 'string' ? 1 : 0, 1, 0);
+  check('position does not expose a top-level entry value',
+    trulyCollected.entryValueUsd === undefined ? 1 : 0, 1, 0);
+  check('position does not expose a computed pnl',
+    trulyCollected.pnl === undefined && trulyCollected.pnlUsd === undefined ? 1 : 0, 1, 0);
+}
+
+console.log('\n--- wallet: address validation ---');
+{
+  const bad = await fetchWalletPositions('http://unused', 'not-an-address');
+  check('malformed address is rejected before any network call', bad.ok ? 1 : 0, 0, 0);
+  const bad2 = await fetchWalletPositions('http://unused', '0x123');
+  check('short hex address is rejected', bad2.ok ? 1 : 0, 0, 0);
 }
 
 if (process.argv.includes('--live')) {

@@ -30,6 +30,7 @@ import {
 } from '../lib/realized.js';
 import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
 import { VENUES, subgraphId, venueList } from '../lib/venues.js';
+import { fetchWalletPositions, describePosition, WALLET_LIMITS } from '../packages/core/src/wallet.js';
 import { crossCheckPrice } from '../packages/core/src/oneinch.js';
 
 // 1inch key is optional. Present -> position responses carry an independent price cross-check.
@@ -202,6 +203,49 @@ async function livePosition(poolId, { entry, range = 2 } = {}, dex = 'uniswap-v3
   };
 }
 
+/**
+ * liveWallet — an address's open positions, with each one's REAL tick range resolved.
+ *
+ * The upgrade this unlocks: every realized number on the site so far assumed a +/-2x band,
+ * because a pool-level dataset cannot know your position. A connected wallet does know, so
+ * we read the actual ticks and report the range width the IL math should use. We do NOT
+ * silently compute a portfolio P&L from fields that don't support one -- see the route
+ * comment and WALLET-CONNECT-NOTES.md.
+ */
+async function liveWallet(owner, { dex = 'uniswap-v3', chain = 'mainnet', includeClosed = false } = {}) {
+  const id = subgraphId(dex, chain);
+  if (!id) return { error: `unknown venue ${dex}/${chain}` };
+  // Aerodrome's subgraph does not expose the same Position entity, so say so rather than
+  // returning a confusing empty list that reads as "you have no positions".
+  if (dex !== 'uniswap-v3') {
+    return { error: `wallet positions are only available for uniswap-v3; ${dex} does not expose a comparable Position entity` };
+  }
+  const r = await fetchWalletPositions(gatewayUrl(API_KEY, id), owner, { includeClosed });
+  if (!r.ok) return { error: r.error };
+
+  const positions = r.positions.map(describePosition);
+  const feesMeasurable = positions.filter((x) => x.fees.measurable).length;
+  const uncollected = positions.filter((x) => x.fees.basis === 'earned-but-uncollected').length;
+
+  return {
+    owner: String(owner).toLowerCase(),
+    dex,
+    chain,
+    openPositions: positions.length,
+    pools: [...new Set(positions.map((x) => x.pair))],
+    positions,
+    feeReporting: {
+      measurable: feesMeasurable,
+      earnedButUncollected: uncollected,
+      note: uncollected
+        ? `${uncollected} of ${positions.length} position(s) have accrued fees that were never collected. We report those as unmeasurable rather than $0 -- the subgraph exposes no accrued-fee balance.`
+        : 'No positions with uncollected accrued fees in this set.',
+    },
+    limits: WALLET_LIMITS,
+    next: 'Feed a position\'s range.widthX into /api/position/{poolId}?entry=YYYY-MM-DD&range={widthX} for realized return at YOUR actual range instead of an assumed +/-2x.',
+  };
+}
+
 async function liveAudit({ limit = 250, days = 30, dex = 'uniswap-v3', chain = 'mainnet' } = {}) {
   const id = subgraphId(dex, chain);
   if (!id) return { error: `unknown venue ${dex}/${chain}` };
@@ -310,6 +354,26 @@ const server = createServer(async (req, res) => {
       return json(res, out.error ? 400 : 200, out);
     }
 
+    // /api/wallet/{address} — which pools does this address actually hold, and at what range.
+    //
+    // This is position DISCOVERY, not per-position P&L, and that is a measured decision rather
+    // than a missing feature. The Position entity's collectedFees fields are a withdrawal
+    // record, not an earnings record (of 150 sampled positions with collectedFeesToken0 == 0,
+    // 71 had non-zero feeGrowthInside0LastX128 -- earned, never collected), and the
+    // deposited/withdrawn fields are lifetime cumulative rather than entry state. Deriving a
+    // fee figure or an entry value from those would reproduce the advertised-APR defect this
+    // project exists to expose. See WALLET-CONNECT-NOTES.md. The `limits` block ships in every
+    // response so the caller cannot miss it.
+    if (p.startsWith('/api/wallet/')) {
+      const owner = decodeURIComponent(p.slice('/api/wallet/'.length)).trim();
+      const dex = url.searchParams.get('dex') || 'uniswap-v3';
+      const chain = url.searchParams.get('chain') || 'mainnet';
+      const includeClosed = url.searchParams.get('includeClosed') === 'true';
+      const out = await cached('pool', `wallet|${dex}|${chain}|${owner.toLowerCase()}|${includeClosed}`,
+        () => liveWallet(owner, { dex, chain, includeClosed }));
+      return json(res, out.error ? 400 : 200, out);
+    }
+
     if (p === '/api/audit') {
       const limit = Number(url.searchParams.get('limit') || 250);
       const days = Number(url.searchParams.get('days') || 30);
@@ -369,7 +433,7 @@ const server = createServer(async (req, res) => {
       if (target.startsWith(join(ROOT, 'assets')) && existsSync(target)) return serveFile(res, target);
     }
 
-    return json(res, 404, { error: 'not found', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/position/{id}?entry=2026-08-01', '/api/audit', '/api/venues'] });
+    return json(res, 404, { error: 'not found', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/position/{id}?entry=2026-08-01', '/api/wallet/{address}', '/api/audit', '/api/venues'] });
   } catch (e) {
     return json(res, 500, { error: String(e.message || e) });
   }
