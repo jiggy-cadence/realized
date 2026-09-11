@@ -195,7 +195,7 @@ slides.push(`
   <div class="cols">
     <div class="col">
       <h3>The Graph — the dataset</h3>
-      <p>Per-day <code>feesUSD</code> are <b>indexer-derived aggregates that exist nowhere on-chain</b>. There is no RPC path to this data: you cannot ask a node what an LP earned last Tuesday. Without the decentralized network this measurement is not merely harder, it is impossible.</p>
+      <p>Per-day <code>feesUSD</code> are <b>indexer-derived aggregates</b>. You could reconstruct fee accrual from RPC &mdash; <code>feeGrowthGlobal0X128</code> is public pool state at any historical block, and we verified that against a live archive node rather than assuming. What is not tractable is the join: that accumulator is Q128 in <i>token</i> units, so per-day USD needs an archive node, a block lookup per day boundary, and a historical price for <b>both</b> tokens at each one &mdash; then repeated for every pool. At ${pools.pools.length} pools across ${hist.chainsMeasured.length} chains that is thousands of archive calls per rebuild. The Graph publishes that join already computed and consistent. <b>The claim is practicality, not impossibility</b> &mdash; an earlier draft of this slide said &ldquo;impossible,&rdquo; which was too strong, and correcting it is the same discipline the rest of this deck is about.</p>
       <code>${esc(hist.chainsMeasured.join(' · '))}</code>
     </div>
     <div class="col">

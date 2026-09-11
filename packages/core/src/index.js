@@ -22,7 +22,8 @@
  *        import { fetchTopPools, scorePool, summarize } from '@realized-lp/core';
  *
  * Why The Graph is load-bearing and not decoration: per-day fee totals in USD are derived
- * aggregates produced by the indexer. They do not exist on-chain. There is no RPC path to
+ * aggregates produced by the indexer. Reconstructing them from RPC is possible but not
+ * practical at corpus scale -- see the note in realized.js. The short version: there is no cheap RPC path to
  * this dataset -- you would have to replay every swap and price it yourself.
  */
 

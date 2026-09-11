@@ -211,8 +211,12 @@ unchanged on Aerodrome Slipstream — different team, codebase, incentive model 
 defect with the same shape. Venues whose stable pairs can't prove ~0 IL are **excluded, not
 reported as clean**. Full tables: <https://realized.drainfun.xyz/report.html>
 
-Data: The Graph. Per-day `feesUSD` are indexer-derived aggregates that exist nowhere on-chain —
-there is no RPC path to this dataset.
+Data: The Graph. Per-day `feesUSD` are indexer-derived aggregates. **Not** unreachable by RPC —
+`feeGrowthGlobal0X128` is public pool state readable at any historical block, verified live
+2026-09-11 — but reconstructing per-day USD from it needs an archive node, a block lookup per
+day boundary, and a historical price for both tokens at each one, repeated per pool. The Graph
+publishes that join already computed across 256 pools and 5 chains. The claim is practicality,
+not impossibility.
 
 ## Machine-readable API spec
 

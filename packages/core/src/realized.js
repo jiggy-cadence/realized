@@ -5,9 +5,25 @@
  * POSITIVE BY CONSTRUCTION: a pool cannot advertise a loss. That is the defect.
  *
  * Realized return = fee income + impermanent loss (IL is <= 0 always).
- * Both terms come from The Graph's historical poolDayData — per-day feesUSD and
- * token0Price at each day's close. There is no RPC path to this: lifetime/daily
- * fee aggregates in USD are DERIVED by the indexer and exist nowhere on-chain.
+ * Both terms come from The Graph's historical poolDayData -- per-day feesUSD and
+ * token0Price at each day's close.
+ *
+ * WHY THE GRAPH AND NOT AN RPC NODE. Not because the data is unreachable -- an earlier
+ * version of this comment claimed "there is no RPC path," and that was FALSE. Verified
+ * 2026-09-11 against a live archive node: feeGrowthGlobal0X128 is public state, readable
+ * at any historical block via eth_call, so a determined engineer CAN reconstruct fee
+ * accrual from RPC.
+ *
+ * What they cannot cheaply do is the rest of it: feeGrowthGlobal is a Q128 accumulator in
+ * TOKEN units, so turning it into per-day USD needs (a) an archive node, (b) a block-number
+ * lookup for every day boundary, (c) a historical USD price for BOTH tokens at each of
+ * those boundaries, and (d) the same again for every pool you want to compare. The Graph
+ * publishes that join already computed and consistent across 256 pools and 5 chains.
+ *
+ * So the honest claim is PRACTICALITY, not impossibility: the indexer is the only route
+ * that makes a cross-pool, multi-chain, daily-resolution corpus tractable. Overstating it
+ * as "impossible" would be the same defect this file exists to measure -- a claim whose
+ * label outruns what was actually checked.
  */
 
 import { concentratedIlPct, outOfRange, RANGES } from './concentrated.js';

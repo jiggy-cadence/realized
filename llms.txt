@@ -12,9 +12,17 @@ License: MIT
 
 ## Why The Graph is load-bearing here
 
-Per-day fee totals in USD are derived aggregates produced by the indexer. They do not
-exist on-chain. There is no RPC path to this dataset — you would have to replay every
-swap in the pool and price each one yourself. Remove The Graph and there is no product.
+Per-day fee totals in USD are derived aggregates produced by the indexer.
+
+RPC is not impossible, and we checked rather than asserted: feeGrowthGlobal0X128 is public
+pool state readable at any historical block (verified live against an archive node on
+2026-09-11). What is impractical is the rest -- that accumulator is Q128 in token units, so
+per-day USD needs an archive node, a block lookup per day boundary, and a historical price
+for BOTH tokens at each boundary, repeated for every pool. At 256 pools across 5 chains that
+is thousands of archive calls per rebuild.
+
+The Graph publishes that join already computed and consistent. The claim is practicality,
+not impossibility.
 
 ## Endpoints (GET, CORS-open, no auth, read-only)
 

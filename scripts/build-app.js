@@ -664,7 +664,8 @@ ${pricecheck && pricecheck.counts.compared > 0 ? `
   correctly refuses to honour. That is a stale-price detector, not a broken instrument — and we'd
   rather show you the two than quietly average them away.</p>
   <p class="sub" style="margin-top:10px;color:#5a6572;font-size:12px">Spot vs spot: this corroborates
-  the current price leg. The historical series still comes only from the indexer — no RPC provides it.
+  the current price leg. The historical series still comes from the indexer — reconstructible from an
+  archive node in principle, but not at corpus scale.
   ${pricecheck.counts.unpriced} pool${pricecheck.counts.unpriced === 1 ? '' : 's'} had no 1inch price and
   ${pricecheck.counts.unpriced === 1 ? 'is' : 'are'} reported as unpriced, never counted as agreement.</p>
 </div>
@@ -756,7 +757,11 @@ coinflip ${llama.canary.coinflip}% — it provably tells a perfect predictor fro
 <p>Realized return = fee income <b>+ impermanent loss</b> (IL is always ≤ 0). Advertised APR is the most
 recent day's fees annualized on current TVL — the standard DEX-UI formula. Both come from The Graph's
 historical <code>poolDayData</code>: per-day fee totals in USD are <b>derived aggregates produced by the
-indexer</b> and do not exist on-chain, so there is no RPC path to this dataset.</p>
+indexer</b>. You could rebuild fee accrual from RPC &mdash; <code>feeGrowthGlobal0X128</code> is public pool
+state at any historical block, and we checked that against a live archive node rather than assuming &mdash;
+but turning a Q128 token-unit accumulator into per-day USD needs an archive node, a block lookup per day
+boundary, and a historical price for both tokens at each one, repeated per pool. <b>The claim is
+practicality, not impossibility.</b></p>
 <p>IL is recomputed in your browser from the pool's price ratio and the range you pick, using the same
 closed form as <code>lib/concentrated.js</code>, which the test suite pins against the standard v2 formula
 at four range widths. Nothing is precomputed per range.</p>

@@ -200,7 +200,21 @@ An MCP server + library that computes **realized** LP return from The Graph's hi
 - `explain_gap(pool)` — where the difference came from
 
 Why The Graph specifically: per-day fee totals in USD are **derived aggregates** produced by
-the indexer. They do not exist on-chain. There is no RPC path to this dataset.
+the indexer.
+
+**Could you get this from an RPC node instead?** Partly, and we checked rather than asserted.
+`feeGrowthGlobal0X128` is public state on every v3 pool, readable at any historical block —
+verified live against an archive node on 2026-09-11. So fee *accrual* is reconstructible.
+
+What isn't cheap is everything after that. The accumulator is a Q128 value in token units, so
+per-day USD requires an archive node, a block lookup for each day boundary, a historical price
+for **both** tokens at each boundary, and the whole thing repeated per pool. For a 256-pool,
+5-chain, daily-resolution corpus that is thousands of archive calls per rebuild.
+
+So the honest claim is **practicality, not impossibility**: The Graph publishes that join
+already computed and consistent across every pool we measure. An earlier version of this README
+said "there is no RPC path," which was too strong — corrected here for the same reason the rest
+of this project exists.
 
 ## Findings (live, reproducible)
 
