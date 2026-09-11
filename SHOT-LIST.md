@@ -16,10 +16,35 @@ If a number on screen differs from this file, **the screen is right** — it rec
 
 ---
 
-## SHOT 1 — The hook · 0:00–0:25
+> **ORDERING NOTE (2026-09-11, after adversarial review).** Three independent judge-sims
+> converged on one criticism despite scoring us 4/10, 4/10 and "podium contender": *the first
+> 60–90 seconds must scream AGENT UTILITY, not dashboard.* Two of them dismissed the project
+> as "a human-facing dashboard with an MCP server bolted on for track fit." The track is **AI
+> Tooling** — so an agent calling the tools has to come FIRST, before any human clicking a UI.
+> That is the single highest-leverage change available without writing new code.
+
+## SHOT 1 — An agent answers the question · 0:00–0:30
+**Screen:** terminal or MCP client. **Not** the website.
+
+Open with a machine doing the work, because that is what this track scores.
+
+Ask it, out loud and on screen:
+
+> *"I entered the USDC/WETH 0.05% pool on July 28th at a ±2x range. What did I actually make,
+> and what would it cost me to close?"*
+
+Let the tool calls land on camera — `find_pool` → `position_realized` → `simulate_exit`.
+
+> "Seven MCP tools, live against The Graph. No API key — the server proxies its own. The agent
+> gets **-$658 net on a $25,000 stake, after $0.28 of gas**, and a reason for every number."
+
+**Why this is shot 1:** a judge watching 50 submissions decides in the first thirty seconds
+whether this is AI tooling or a dashboard. Show the tooling.
+
+## SHOT 2 — The defect, in one number · 0:30–0:55
 **Screen:** landing page, top.
 
-Open on the number, not on yourself.
+*Now* bring the human view up, as proof the same engine serves both.
 
 > "This is USDC/WETH — the most-used pool in DeFi. It advertised **+0.65% APR**.
 > An LP who put in $100,000 walked out with **$97,027**."
