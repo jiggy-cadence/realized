@@ -422,7 +422,7 @@ const server = createServer(async (req, res) => {
     if (p === '/api/venues') return json(res, 200, { venues: venueList(), cachedVenues: [...new Set(POOLS.pools.map((x) => `${x.dex}/${x.chain}`))] });
 
     // static passthrough for the human page + legacy report
-    const staticMap = { '/': 'index.html', '/index.html': 'index.html', '/deck': 'deck.html', '/deck.html': 'deck.html', '/report.html': 'report.html', '/llms.txt': 'llms.txt', '/skill.md': 'SKILL.md', '/SKILL.md': 'SKILL.md' };
+    const staticMap = { '/': 'index.html', '/index.html': 'index.html', '/deck': 'deck.html', '/deck.html': 'deck.html', '/report.html': 'report.html', '/llms.txt': 'llms.txt', '/skill.md': 'SKILL.md', '/SKILL.md': 'SKILL.md', '/openapi.json': 'openapi.json' };
     const file = staticMap[p];
     if (file && existsSync(join(ROOT, file))) return serveFile(res, join(ROOT, file));
 
@@ -433,7 +433,7 @@ const server = createServer(async (req, res) => {
       if (target.startsWith(join(ROOT, 'assets')) && existsSync(target)) return serveFile(res, target);
     }
 
-    return json(res, 404, { error: 'not found', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/position/{id}?entry=2026-08-01', '/api/wallet/{address}', '/api/audit', '/api/venues'] });
+    return json(res, 404, { error: 'not found', spec: '/openapi.json', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/position/{id}?entry=2026-08-01', '/api/wallet/{address}', '/api/audit', '/api/venues'] });
   } catch (e) {
     return json(res, 500, { error: String(e.message || e) });
   }

@@ -77,6 +77,37 @@ git clone https://github.com/jiggy-cadence/realized && cd realized && npm instal
 | `explain_gap(poolId)` | plain-language verdict + the evidence chain that produced it |
 | `audit_pools(limit?)` | corpus-wide sweep: how many pools advertise a profit LPs didn't get |
 
+### Stop assuming the range — read the real one
+
+Every number above needs a range width, and `±2×` is a guess. `/api/wallet/{address}` reads what
+the LP actually set:
+
+```bash
+curl -s "https://realized.drainfun.xyz/api/wallet/0xYourAddress"
+```
+
+Read-only. No signing, no wallet connection, no permissions — it is a subgraph lookup on a public
+address, nothing more. Returns each open position with its real `tickLower`/`tickUpper`, the
+derived `range.widthX`, and a plain-language `range.label`. **Feed `range.widthX` into
+`position_realized` (or `/api/position/{poolId}?range=`) to get realized return at the LP's actual
+band instead of an assumed one.** That is the whole point of the endpoint.
+
+**It is position discovery, not per-position P&L — deliberately.** Two fields look like they'd
+give you fees and entry value. Both lie:
+
+- `collectedFees*` is a **withdrawal** record, not an earnings record — it only populates when the
+  LP calls `collect()`. Measured live: of 150 positions with `collectedFeesToken0 == 0`, **71 had
+  non-zero `feeGrowthInside0LastX128`** — they earned fees and never collected. So uncollected fees
+  return `measurable: false` with a reason, **never `$0`**. Reporting zero there would reproduce the
+  exact defect this project exists to expose, pointed at the user's own money.
+- `deposited*`/`withdrawn*` are **lifetime cumulative**, not entry state (75% of live positions read
+  as one-sided because of it). They are namespaced under `cumulative` and must not be read as
+  position value.
+
+Every response carries a `limits` block stating both, and token `decimals` ship beside every raw
+amount so you never guess the divisor. Never render a position's fees as a number unless
+`fees.measurable` is `true`.
+
 ### `position_realized` — the one question every real LP actually has
 
 `realized_return` answers "what does the average LP get in this pool right now."
@@ -133,3 +164,8 @@ reported as clean**. Full tables: <https://realized.drainfun.xyz/report.html>
 
 Data: The Graph. Per-day `feesUSD` are indexer-derived aggregates that exist nowhere on-chain —
 there is no RPC path to this dataset.
+
+## Machine-readable API spec
+
+Full OpenAPI 3.1 description of every endpoint, parameter, response shape and error:
+<https://realized.drainfun.xyz/openapi.json> — so an agent never has to guess a request shape.

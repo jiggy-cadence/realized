@@ -53,6 +53,9 @@ curl "https://realized.drainfun.xyz/api/position/0x88e6a0c2ddd26feeb64f039a2c412
 # 1. Ask the live API (no key, no install)
 curl "https://realized.drainfun.xyz/api/position/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640?entry=2026-07-28&range=2"
 
+# 1b. Don't know your range? Read it off-chain from your address (read-only, no signing)
+curl "https://realized.drainfun.xyz/api/wallet/0xYourAddress"
+
 # 2. Or in code
 npm i @realized-lp/core
 ```
@@ -70,6 +73,38 @@ positionRealized(pool, 2).realizedReturnPct;   // the number your dashboard can'
 // tools: find_pool, realized_return, position_realized, audit_pools, explain_gap
 ```
 
+Machine-readable spec for every endpoint: **[`/openapi.json`](https://realized.drainfun.xyz/openapi.json)**
+(OpenAPI 3.1) — so an agent never has to guess a request shape or an error code.
+
+### Your real range, not an assumed one
+
+Every realized number needs a range width, and `±2×` is a guess. Paste an address and we read the
+band you actually set:
+
+```bash
+curl "https://realized.drainfun.xyz/api/wallet/0xYourAddress"
+```
+
+**Read-only — no signing, no wallet connection, no permissions.** It is a subgraph lookup against a
+public address. You get each open position's real `tickLower`/`tickUpper`, a derived `range.widthX`
+to feed straight into `/api/position/`, and a plain-language label for humans.
+
+It is position **discovery**, not per-position P&L — and that is a measured decision, not a missing
+feature. Two Position fields look like they'd hand you fees and entry value. Both are traps:
+
+- `collectedFees*` is a **withdrawal** record, not an earnings record — it populates only when the
+  LP calls `collect()`. Measured live: of 150 positions with `collectedFeesToken0 == 0`, **71 had
+  non-zero `feeGrowthInside0LastX128`**. They earned fees and never collected. So uncollected fees
+  report `measurable: false` with a reason and **never `$0`** — a fabricated zero is a number whose
+  label lies, which is the precise defect this project exists to expose, aimed at the user's own
+  money.
+- `deposited*`/`withdrawn*` are **lifetime cumulative**, not entry state — 75% of live positions
+  read as one-sided because of it. They ship namespaced under `cumulative` and must not be read as
+  position value.
+
+Every response carries a `limits` block stating both, and token `decimals` ship beside every raw
+amount so no consumer has to guess a divisor.
+
 ### What we do NOT claim
 
 The narrow claim is the strong one, and it is the only one we make:
@@ -81,7 +116,9 @@ The narrow claim is the strong one, and it is the only one we make:
   we credit them, so tight-range losses shown here are **lower bounds**. The direction is
   robust; treat tight-range magnitudes as bounded, not exact.
 - **Fees are pool-level, not per-position.** We cannot see your individual liquidity share, so
-  this is what a representative LP at that range earned, not your exact wallet.
+  this is what a representative LP at that range earned, not your exact wallet. `/api/wallet/`
+  gives us your real *range*, which is the input that actually moves the answer — it does not
+  give us your fees, and we refuse to invent them (see below).
 - **IL is computed closed-form** from entry/exit price ratio, not by replaying every rebalance.
 
 Full limitations, sensitivity across gates, and a retracted claim we killed ourselves are in
