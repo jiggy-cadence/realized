@@ -523,13 +523,34 @@ ${(() => {
   const liars = scored.filter((p) => p.trustLabel === 'routinely misleading')
     .sort((a, b) => (b.gapPts ?? 0) - (a.gapPts ?? 0)).slice(0, 8);
   if (!honest.length && !liars.length) return '';
-  const row = (p, showGap) => `<tr>
+  // 2026-09-11: this table used to print the ANNUALISED figure raw, which produced rows like
+  // "USDC/VELVET -988.8%". That number cannot happen: an LP position is floored at -100% (the
+  // stake is gone; there is nothing further to lose). The window arithmetic was correct --
+  // VELVET really did lose 81.28% over 30 days, r=0.0826 -- but multiplying a 30-day loss by
+  // 12.17 projects a year of repeated collapse onto a token that can only go to zero once.
+  //
+  // That is precisely the defect this project exists to expose -- a label that has drifted from
+  // the thing it measures -- appearing in our own headline table. Caught by Jiggy reading the
+  // page, not by a test, which is why it stood: every canary checked the MATH and the math was
+  // never wrong. Nothing asserted the DISPLAYED NUMBER stays inside its own possible range.
+  //
+  // Fix: show what actually happened over the measured window (always >= -100%), and annualise
+  // only where annualising is meaningful. Verified across the corpus: 0 of 256 window returns
+  // violate the floor; 18 of 256 annualised ones did. test/canary.test.js now asserts the floor.
+  const WINDOW_FLOOR = -100;
+  const windowPct = (p) => (p.realizedAprPct / 365) * p.days;
+  const row = (p, showGap) => {
+    const wr = windowPct(p);
+    const shown = Math.max(wr, WINDOW_FLOOR);
+    const capped = wr < WINDOW_FLOOR;
+    return `<tr>
     <td>${p.pair}</td>
     <td class="hide-s">$${(p.tvl / 1e6).toFixed(1)}M</td>
-    <td>${p.adv >= 0 ? '+' : ''}${p.adv.toFixed(2)}%</td>
-    <td><strong class="${p.realizedAprPct < 0 ? 'bad' : 'ok'}">${p.realizedAprPct >= 0 ? '+' : ''}${p.realizedAprPct.toFixed(1)}%</strong></td>
-    ${showGap ? `<td class="bad">${p.gapPts >= 0 ? '+' : ''}${p.gapPts.toFixed(1)}pt</td>` : ''}
+    <td>${p.adv >= 0 ? '+' : ''}${((p.adv / 365) * p.days).toFixed(2)}%</td>
+    <td><strong class="${shown < 0 ? 'bad' : 'ok'}">${shown >= 0 ? '+' : ''}${shown.toFixed(1)}%${capped ? '<span title="floored: an LP cannot lose more than the stake">*</span>' : ''}</strong></td>
+    ${showGap ? `<td class="bad">${(((p.adv / 365) * p.days) - shown).toFixed(1)}pt</td>` : ''}
   </tr>`;
+  };
   return `
 <div class="trust">
   <h2>Which advertised APRs can you actually trust?</h2>
@@ -551,6 +572,11 @@ ${(() => {
       <tbody>${liars.map((p) => row(p, true)).join('')}</tbody></table>
     </div>
   </div>
+  <p class="sub" style="font-size:.82rem;opacity:.75">Both tables show the <strong>actual return over the
+  measured ${pools.pools[0]?.days ?? 30}-day window</strong>, not an annualised projection. Annualising a
+  short window inflates it — a token that fell 92% in a month reads as −988% once multiplied by 12,
+  which is not a number that can happen: an LP cannot lose more than the stake. Where a pool would
+  still print past that floor it is marked <strong>*</strong> and held at −100%.</p>
   <p class="sub trust-note"><strong>This is a track record, not a forecast.</strong> We tested predictive
   pool selection directly: one formation/holdout split showed a +1.64pt edge, then five walk-forward
   re-runs with the same untuned scorer returned −0.11, +0.04 and +0.26pt against a pre-registered
