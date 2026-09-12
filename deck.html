@@ -184,10 +184,10 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
 <section class="slide" id="s2">
   <div class="kicker">The cause</div>
   <h2>Advertised APR has <em>no price term</em>. It cannot show a loss.</h2>
-  <p class="lede">Every DEX computes advertised APR as fees ÷ liquidity, annualized. Fees are always ≥ 0, so the number is <b>positive by construction</b> — it is structurally incapable of reporting that you lost money.</p>
-  <p class="lede">What's missing is impermanent loss: the cost of the pool rebalancing you out of the asset that went up. Add the price term back and you get the number that was always the actual answer.</p>
-  <div class="eq">realized return = fees + impermanent loss(price ratio, range width)</div>
-  <p class="note">Not our discovery that LPs can lose to HODL — Topaze Blue / Bancor established that in 2021. Our contribution is calibrating <em>the advertised metric itself</em>, pool by pool, against what happened.</p>
+  <p class="lede">Advertised APR is <b>fees ÷ liquidity, annualized</b>. Fees are never negative — so the number can never be.</p>
+  <div class="eq">advertised = fees only → always ≥ 0<br>realized&nbsp;&nbsp;&nbsp;= fees <b>+ impermanent loss</b> → the actual answer</div>
+  <p class="lede punch">The missing term is what the pool cost you by rebalancing out of the asset that went up.</p>
+  <p class="note">LPs losing to HODL is not our finding — Topaze Blue / Bancor, 2021. Ours is calibrating <em>the advertised metric itself</em>, pool by pool, against what happened.</p>
 </section>
 
 <section class="slide" id="s3">
@@ -204,8 +204,9 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
     </tbody>
   </table>
   </div>
-  <p class="note">Same pools, same window, only the assumed range changes. The direction never flips: <b>the tighter and more realistic your position, the more the advertised number lies to you.</b> Full-range is the most generous possible case for the pool, and the defect is still there. Measured across 4 chains — mainnet, arbitrum, polygon, base.</p>
-  <p class="note dim">Fees are held constant across ranges, which is deliberately unfair to us: concentrating earns more fees too. We can't measure per-position fees from pool-level data, so we report the direction and treat magnitudes as bounded by that caveat.</p>
+  <p class="lede punch">The direction never flips. The tighter your position, the more the advertised number lies.</p>
+  <p class="note">Same pools, same window — only the assumed range changes. Full-range is the <em>most generous</em> case for the pool and the defect is still there. 4 chains: mainnet, arbitrum, polygon, base.</p>
+  <p class="note dim">Fees held constant across ranges, deliberately unfair to us — concentrating earns more fees too. Direction is what we claim; magnitudes are bounded by that caveat.</p>
 </section>
 
 <section class="slide" id="s4">
@@ -214,21 +215,24 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
   <div class="cols">
     <div class="col">
       <h3>For humans</h3>
-      <p>Pick a pool, pick your entry date, see what you actually made. 376 live pools across 6 venues.</p>
+      <p class="big">376<span class="unit">live pools</span></p>
+      <p>Pick a pool, pick your entry date, see what you actually made.</p>
       <code>realized.drainfun.xyz</code>
     </div>
     <div class="col">
       <h3>For agents</h3>
-      <p>CORS-open JSON + an MCP server (<code>find_pool</code>, <code>realized_return</code>, <code>audit_pools</code>, <code>rank_pools</code>, <code>explain_gap</code>). No scraping the HTML.</p>
+      <p class="big">7<span class="unit">MCP tools</span></p>
+      <p>CORS-open JSON + MCP server. No key, no scraping the HTML.</p>
       <code>GET /api/pools</code>
     </div>
     <div class="col">
       <h3>For builders</h3>
-      <p>The math is an installable package, not a repo you read. Same closed form the page and the API use.</p>
+      <p class="big">1<span class="unit">closed form</span></p>
+      <p>The math is an installable package — same formula the page and API use.</p>
       <code>@realized-lp/core</code>
     </div>
   </div>
-  <p class="note"><b>A test vector ships in the API response.</b> Real pool, real inputs, real output — implement the formula, run it on those inputs, and check you match before trusting your own math. An agent shouldn't have to take our word for it.</p>
+  <p class="lede punch">A test vector ships <em>inside</em> the API response — verify our math instead of trusting it.</p>
 </section>
 
 <section class="slide" id="s4b">
@@ -292,27 +296,28 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
   <div class="cards">
     <div class="card">
       <div class="ck">Stable-pair canary</div>
-      <p>Stable/stable pairs <b>must</b> show ~0 impermanent loss or the run is marked untrusted and the build <b>refuses to write output</b>.</p>
+      <p>Stable pairs must show ~0 IL — or the build <b>refuses to write output</b>.</p>
       <div class="cv">worst |IL| = 0.0005%</div>
     </div>
     
     <div class="card">
       <div class="ck">Independent price audit</div>
-      <p>1inch Spot Price Aggregator has never seen our subgraph. We compare every pool's price against it.</p>
+      <p>1inch has never seen our subgraph. Every pool price checked against it.</p>
       <div class="cv">97.3% agree · median divergence 0.134%</div>
     </div>
     <div class="card">
       <div class="ck">Three cutoffs, always</div>
-      <p>Every headline is reported at three liveness cutoffs. If a finding flips across them we label it a <b>parameter, not a finding</b>.</p>
+      <p>Every headline at three cutoffs. Flips across them? <b>A parameter, not a finding.</b></p>
       <div class="cv">no single-cutoff headlines</div>
     </div>
     <div class="card">
       <div class="ck">Unmeasurable ≠ zero</div>
-      <p>A missing price returns <code>measurable: false</code>, never a fabricated 0.</p>
+      <p>Missing price returns <code>measurable: false</code> — never a fabricated 0.</p>
       <div class="cv">nulls stay null</div>
     </div>
   </div>
-  <p class="note">The two pools that disagree with 1inch are real findings, not noise: <code>USDC/UST</code> and <code>WBTC/PAX</code> — dead tokens whose subgraph price is stale. Finding them is the audit working. The README carries a public <b>honesty box</b> listing our own retractions: a headline correlation that didn't reproduce, a v2 formula applied to a v3 venue, and a canary that nearly deleted correct code. We publish those because a project that has never caught itself being wrong has not been looking.</p>
+  <p class="lede punch">The README carries our own retractions. A project that has never caught itself being wrong has not been looking.</p>
+  <p class="note">Pools that disagree with 1inch are findings, not noise — dead tokens with stale subgraph prices. Catching them <em>is</em> the audit working. Published retractions: a correlation that didn't reproduce, a v2 formula on a v3 venue, a canary that nearly deleted correct code.</p>
 </section>
 
 <section class="slide" id="s7">
@@ -324,8 +329,9 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
     <a href="/llms.txt">llms.txt</a>
     <a href="/SKILL.md">SKILL.md</a>
   </div>
-  <p class="note">ETHOnline 2026 · The Graph — AI Tooling / AI Use Case · The Graph — Composable &amp; Standardized Products · Uniswap — Stack Contribution. Built on the decentralized network across mainnet, arbitrum, polygon, base. Live corpus: 37.3% of measured pools currently advertise a positive APR while realizing a negative return.</p>
-  <p class="note dim">Deck generated 2026-09-12 17:09 UTC from the same data files that serve the API. If a number here disagrees with the API, the API is right and this page is stale — rebuild with <code>node scripts/build-deck.js</code>.</p>
+  <p class="lede punch">37.3% of measured pools advertise a positive APR while realizing a negative return. Live, right now.</p>
+  <p class="note">ETHOnline 2026 · The Graph (AI Tooling · Composability) · Uniswap Stack — mainnet, arbitrum, polygon, base.</p>
+  <p class="note dim">Generated 2026-09-12 17:12 UTC from the same files that serve the API. If a number here disagrees with the API, the API is right.</p>
 </section>
 </div>
 <div class="dnav" id="nav" hidden>
