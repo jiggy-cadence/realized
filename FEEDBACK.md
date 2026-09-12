@@ -10,6 +10,14 @@ that each one produced. Nothing here is a feature wish we didn't hit ourselves.
 
 ---
 
+> **Source for everything below:** [`Uniswap/v4-subgraph`](https://github.com/Uniswap/v4-subgraph)
+> `schema.graphql` on `main`, cross-checked against live GraphQL introspection of the deployed
+> mainnet subgraph (`DiYPVdygkfjDWhbxGSqAQxwBKmfKnkWQojqeM2rkLb3G`) on 2026-09-12. The deployed
+> schema and the repo agree field-for-field, so these are decisions visible in your own source,
+> not artifacts of a third-party index.
+
+---
+
 ## 1. The v4 `Position` entity carries no tick range, and that is the whole product
 
 This was the single biggest surprise of the build, and it changed what we could offer per venue.
@@ -25,10 +33,29 @@ depositedToken0 / withdrawnToken0 / collectedFeesToken0 / feeGrowthInside0LastX1
 
 So "what range is this LP actually in, and what did they realize?" is one query.
 
-In **v4**, the `Position` entity exposes only
-`id / tokenId / owner / origin / createdAtTimestamp / subscriptions / unsubscriptions / transfers`.
-There is **no `tickLower`, no `tickUpper`, no `pool`, no `liquidity`**. The range exists only in the
-`ModifyLiquidity` event log.
+In **v4**, `schema.graphql` defines `Position` as:
+
+```graphql
+type Position @entity(immutable: false) {
+  id: ID!
+  tokenId: BigInt!
+  owner: String!
+  origin: String!
+  createdAtTimestamp: BigInt!
+  subscriptions: [Subscribe!]!    @derivedFrom(field: "position")
+  unsubscriptions: [Unsubscribe!]! @derivedFrom(field: "position")
+  transfers: [Transfer!]!          @derivedFrom(field: "position")
+}
+```
+
+There is **no `tickLower`, no `tickUpper`, no `pool`, no `liquidity`** — and no `@derivedFrom` link
+to `ModifyLiquidity`, even though `Pool` has exactly that (`modifyLiquiditys: [ModifyLiquidity!]!
+@derivedFrom(field: "pool")`). The range exists only in the event log.
+
+The data itself is all indexed — `ModifyLiquidity` carries `tickLower`, `tickUpper`, `amount` and
+`pool`, and there is a full `Tick` entity. **Nothing is missing from the index; what's missing is the
+join from a position to its own liquidity history.** That is what makes this a schema decision with
+a cheap fix rather than an indexing limitation.
 
 We had to reconstruct it ([`packages/core/src/v4.js`](packages/core/src/v4.js)): group a wallet's
 events by `(pool, tickLower, tickUpper)` and sum the **signed** `amount`, where a net-positive key is
@@ -41,25 +68,55 @@ reconstructed liquidity ([`packages/core/src/venues.js`](packages/core/src/venue
 An entire class of portfolio/PnL tooling either degrades on v4 or, worse, doesn't notice and reports
 confident wrong numbers.
 
-**Concrete ask:** expose `tickLower` / `tickUpper` / `pool` / current `liquidity` on the v4 `Position`
-entity, or publish an official derived entity that does. It would collapse ~300 lines of
-reconstruction and three classes of edge case (below) into one query, and would let integrators offer
-the same answers on v4 that they offer on v3.
+**Concrete ask:** give `Position` a link to its liquidity history — either `tickLower`/`tickUpper`/
+`pool`/`liquidity` directly, or a `@derivedFrom` edge to `ModifyLiquidity` of the kind `Pool` already
+has. It would collapse ~300 lines of reconstruction and three classes of edge case (below) into one
+query, and would let integrators offer the same answers on v4 that they offer on v3.
+
+As written, every team building v4 position tooling reimplements this reconstruction independently,
+and each one has to rediscover sections 2–4 below on their own. Most will not — all three failure
+modes are silent.
 
 ---
 
-## 2. `sender` is the position manager contract, not the human — and the failure is silent
+## 2. `sender` is the position manager contract, not the human — and `owner` is commented out
 
 Querying `ModifyLiquidity` by `sender` for a wallet that **definitely has positions** returned
 **zero rows**. Not an error — an empty, plausible-looking result. Switching to `origin` (the EOA)
 returned that wallet's events.
 
+The reason is visible in `schema.graphql` (lines 233–239):
+
+```graphql
+type ModifyLiquidity @entity(immutable: true) {
+  ...
+  # owner of position where liquidity modified to
+  # owner: Bytes            <-- commented out
+  # the address that modified the liquidity
+  sender: Bytes
+  # txn origin
+  origin: Bytes!            # the EOA that initiated the txn
+}
+```
+
+**The field that would answer "whose position is this" exists in the schema and is commented out.**
+That single line is why position ownership has to be inferred from `origin`, and why `origin` is an
+imperfect proxy: it is the EOA that *initiated the transaction*, which is not always the position's
+owner (see section 4).
+
+**Concrete ask:** restoring `owner` on `ModifyLiquidity` would fix sections 2 and 4 at once, and
+would make section 1's reconstruction correct rather than merely careful. If it was commented out
+because the PoolManager event doesn't carry it directly, that constraint is worth stating in the
+schema comment — right now it reads as an unfinished line rather than a decision.
+
 This is the worst shape a mistake can have: it looks like "this user has no positions" rather than
 "you used the wrong field." A brand-new integrator can ship that and never know.
 
-**Concrete ask:** call this out explicitly in the v4 subgraph schema docs/field descriptions —
-`sender` = position manager contract, `origin` = EOA, use `origin` for wallet lookups. One sentence
-in the schema description would have saved us an hour of doubting our address handling.
+Failing that: one sentence in the field description — `sender` = position manager contract,
+`origin` = EOA, use `origin` for wallet lookups. GraphQL introspection returns `description: null`
+for every field on `Position`, so the `#` comments in `schema.graphql` never reach the people
+querying the deployed subgraph. Promoting those comments to schema descriptions would surface them
+in every GraphQL client and IDE for free.
 
 (Documented at [`packages/core/src/v4.js`](packages/core/src/v4.js) lines 15–16.)
 
@@ -93,8 +150,13 @@ We can detect the situation but **cannot resolve it** from the subgraph, so we c
 `incompleteHistory` and deliberately withhold their size rather than invent liquidity or silently
 drop a real on-chain event.
 
-**Concrete ask:** linking transfers to the underlying liquidity history (or exposing the position's
-full lifecycle across owners) would let integrators report these honestly instead of excluding them.
+Note that `Transfer` **is** modelled, with a `position` pointer, `from`, and `to`. So the ownership
+change is indexed — it just cannot be joined back to the liquidity, because `ModifyLiquidity` has no
+`owner` (section 2) and `Position` has no liquidity edge (section 1). The three findings are the same
+missing join seen from three directions.
+
+**Concrete ask:** same as section 2 — restoring `owner` on `ModifyLiquidity` would make transferred-in
+positions resolvable instead of merely detectable.
 
 ---
 
