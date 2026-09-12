@@ -297,12 +297,54 @@ const html = `<!doctype html>
 :root{--bg:#0b0f14;--fg:#e6edf3;--dim:#7d8590;--acc:#e07a5f;--good:#3fb950;--line:#1c2229;--card:#111820;--down:#ff6b6b;--up:#6fd89a}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1000px;margin:0 auto;padding:28px 20px 80px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+/* DECK MODE (added 2026-09-12, Jiggy: "should take up a computer screen, not scroll").
+   The page was 8 stacked cards you scrolled through -- fine to read, wrong to RECORD, because
+   you cannot present while hunting for the scroll position. Slides are now viewport-sized and
+   exactly one is visible at a time; arrows/click/swipe move between them.
+   Deliberately NOT a framework: this is ~40 lines of vanilla JS at the bottom of the file.
+   Print CSS still emits every slide as its own page, so PDF export is unchanged. And if JS
+   fails, .deck falls back to the old scrolling stack -- the content is never trapped behind
+   the navigation. */
+.deck{position:relative}
+.deck .slide{display:none}
+.deck .slide.on{display:flex}
 .top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px;flex-wrap:wrap}
 .brand{font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--acc);font-weight:700}
 .top a{color:var(--dim);text-decoration:none;font-weight:600;font-size:11.5px;border:1px solid var(--line);border-radius:5px;padding:4px 9px;margin-left:6px}
 .top a:hover{color:var(--fg);border-color:#333}
 .slide{background:linear-gradient(180deg,#141c26 0%,var(--card) 100%);border:1px solid #24303d;border-radius:18px;padding:34px 34px 30px;margin-bottom:16px;scroll-margin-top:16px}
+/* Viewport-filling slide: header+footer chrome is ~112px, so the card takes the rest.
+   overflow-y:auto on the INNER body means a dense slide scrolls inside its own frame
+   rather than pushing the deck chrome off screen. */
+.deck .slide{min-height:calc(100vh - 112px);max-height:calc(100vh - 112px);flex-direction:column;justify-content:center;margin:0;padding:40px 44px;overflow:hidden;animation:slidein .22s ease-out}
+.deck .slide>.sbody{overflow-y:auto;scrollbar-width:thin;padding-right:6px}
+.deck .slide>.sbody::-webkit-scrollbar{width:6px}
+.deck .slide>.sbody::-webkit-scrollbar-thumb{background:#2b3743;border-radius:3px}
+@keyframes slidein{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+/* Nav chrome */
+.dnav{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 2px 14px}
+.dbtn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:104px;background:#121a23;color:var(--fg);border:1px solid #2b3743;border-radius:10px;padding:10px 15px;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer;transition:border-color .15s,color .15s,background .15s;-webkit-tap-highlight-color:transparent}
+.dbtn:hover:not(:disabled){border-color:var(--acc);color:var(--acc);background:#161f29}
+.dbtn:active:not(:disabled){transform:translateY(1px)}
+.dbtn:disabled{opacity:.32;cursor:default}
+.dbtn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.dots{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+.dot{width:9px;height:9px;border-radius:50%;background:#2b3743;border:0;padding:0;cursor:pointer;transition:background .15s,transform .15s}
+.dot:hover{background:#44525f;transform:scale(1.25)}
+.dot.on{background:var(--acc);transform:scale(1.3)}
+.dot:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.dcount{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums;letter-spacing:.06em;min-width:52px;text-align:center}
+.dhint{font-size:11.5px;color:#4b5560;letter-spacing:.04em;text-align:center;padding:0 0 14px}
+.dhint kbd{font-family:inherit;background:#161d26;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--dim);font-size:11px}
+/* Progress rail: thin, top of viewport, so a recording shows position without chrome. */
+.drail{position:fixed;top:0;left:0;height:2px;background:var(--acc);width:0;transition:width .22s ease-out;z-index:50}
+@media(max-width:860px){
+  .deck .slide{min-height:calc(100vh - 104px);max-height:calc(100vh - 104px);padding:26px 20px}
+  .dbtn{min-width:0;padding:10px 13px}
+  .dbtn .lbl{display:none}
+  .dots{gap:6px}
+}
 .kicker{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:700;margin-bottom:14px}
 .kicker.warn{color:var(--acc)}
 h2{font-size:clamp(24px,3.5vw,34px);line-height:1.16;letter-spacing:-.03em;margin:0 0 16px;font-weight:750}
@@ -371,15 +413,118 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
 .links{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 0}
 .links a{color:var(--fg);text-decoration:none;border:1px solid #2b3743;border-radius:8px;padding:9px 14px;font-size:13.5px;font-weight:600}
 .links a:hover{border-color:var(--acc);color:var(--acc)}
-@media print{body{background:#fff}.slide{page-break-after:always;break-after:page}}
+/* Print/PDF: show every slide again, one per page. Deck mode must never cost us the export. */
+@media print{
+  body{background:#fff}
+  .deck .slide{display:flex!important;min-height:auto;max-height:none;page-break-after:always;break-after:page}
+  .deck .slide>.sbody{overflow:visible}
+  .dnav,.dhint,.drail{display:none!important}
+}
 </style></head>
-<body><div class="wrap">
+<body><div class="drail" id="rail"></div><div class="wrap">
 <div class="top">
   <div class="brand">REALIZED — ETHOnline 2026</div>
   <div><a href="/">Live app</a><a href="/api/pools">API</a><a href="https://github.com/jiggy-cadence/realized" rel="noopener">Source</a></div>
 </div>
+<div class="deck" id="deck">
 ${slides.join('\n')}
-</div></body></html>`;
+</div>
+<div class="dnav" id="nav" hidden>
+  <button class="dbtn" id="prev" type="button" aria-label="Previous slide">← <span class="lbl">Prev</span></button>
+  <div class="dots" id="dots" role="tablist" aria-label="Slides"></div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="dcount" id="count"></span>
+    <button class="dbtn" id="next" type="button" aria-label="Next slide"><span class="lbl">Next</span> →</button>
+  </div>
+</div>
+<p class="dhint" id="hint" hidden><kbd>←</kbd> <kbd>→</kbd> or <kbd>space</kbd> to move · <kbd>f</kbd> fullscreen · <kbd>a</kbd> shows every slide for printing</p>
+</div>
+<script>
+/* Deck navigation. Vanilla on purpose: a slideshow that needs a build step to show a slide is
+   a worse slideshow. Progressive enhancement -- the markup above is a readable scrolling stack
+   with no JS, and this upgrades it in place. If this script throws, the deck still reads. */
+(function(){
+  var deck=document.getElementById('deck');
+  var slides=[].slice.call(deck.querySelectorAll('.slide'));
+  if(slides.length<2) return;
+
+  // Wrap each slide's children so dense slides scroll INSIDE the frame instead of pushing the
+  // nav off screen. Done in JS so the generator's slide templates stay untouched.
+  slides.forEach(function(s){
+    var body=document.createElement('div');
+    body.className='sbody';
+    while(s.firstChild) body.appendChild(s.firstChild);
+    s.appendChild(body);
+  });
+
+  var nav=document.getElementById('nav'), hint=document.getElementById('hint');
+  var prev=document.getElementById('prev'), next=document.getElementById('next');
+  var dotsEl=document.getElementById('dots'), countEl=document.getElementById('count');
+  var rail=document.getElementById('rail');
+  var i=0, showAll=false;
+
+  var dots=slides.map(function(_,n){
+    var b=document.createElement('button');
+    b.className='dot'; b.type='button'; b.setAttribute('role','tab');
+    b.setAttribute('aria-label','Slide '+(n+1));
+    b.addEventListener('click',function(){go(n)});
+    dotsEl.appendChild(b); return b;
+  });
+
+  function render(){
+    slides.forEach(function(s,n){ s.classList.toggle('on', n===i); });
+    dots.forEach(function(d,n){ d.classList.toggle('on', n===i); d.setAttribute('aria-selected', n===i); });
+    countEl.textContent=(i+1)+' / '+slides.length;
+    prev.disabled = i===0; next.disabled = i===slides.length-1;
+    rail.style.width=((i+1)/slides.length*100)+'%';
+    if(location.hash!=='#'+slides[i].id) history.replaceState(null,'','#'+slides[i].id);
+  }
+  function go(n){ if(showAll) toggleAll(); i=Math.max(0,Math.min(slides.length-1,n)); render(); }
+
+  // 'a' = show every slide stacked, which is what you want before hitting Cmd+P.
+  function toggleAll(){
+    showAll=!showAll;
+    deck.classList.toggle('deck',!showAll);
+    nav.hidden=showAll; hint.hidden=showAll;
+    if(!showAll){ render(); } else { rail.style.width='100%'; }
+  }
+
+  prev.addEventListener('click',function(){go(i-1)});
+  next.addEventListener('click',function(){go(i+1)});
+
+  document.addEventListener('keydown',function(e){
+    if(e.metaKey||e.ctrlKey||e.altKey) return;
+    var k=e.key;
+    if(k==='ArrowRight'||k==='PageDown'||k===' '||k==='n'){ e.preventDefault(); go(i+1); }
+    else if(k==='ArrowLeft'||k==='PageUp'||k==='p'){ e.preventDefault(); go(i-1); }
+    else if(k==='Home'){ e.preventDefault(); go(0); }
+    else if(k==='End'){ e.preventDefault(); go(slides.length-1); }
+    else if(k==='a'){ e.preventDefault(); toggleAll(); }
+    else if(k==='f'){ e.preventDefault();
+      if(document.fullscreenElement) document.exitFullscreen();
+      else if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    }
+    else if(/^[1-9]$/.test(k)){ e.preventDefault(); go(parseInt(k,10)-1); }
+  });
+
+  // Touch: swipe horizontally. Vertical scroll inside .sbody must keep working, so only act
+  // when the gesture is clearly horizontal.
+  var x0=null,y0=null;
+  deck.addEventListener('touchstart',function(e){ x0=e.touches[0].clientX; y0=e.touches[0].clientY; },{passive:true});
+  deck.addEventListener('touchend',function(e){
+    if(x0===null) return;
+    var dx=e.changedTouches[0].clientX-x0, dy=e.changedTouches[0].clientY-y0;
+    if(Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)*1.6) go(i+(dx<0?1:-1));
+    x0=y0=null;
+  },{passive:true});
+
+  nav.hidden=false; hint.hidden=false;
+  var fromHash=slides.findIndex(function(s){ return '#'+s.id===location.hash; });
+  i = fromHash>-1 ? fromHash : 0;
+  render();
+})();
+</script>
+</body></html>`;
 
 writeFileSync(`${__dirname}/../deck.html`, html);
 console.log(`wrote deck.html (${(html.length / 1024).toFixed(1)} KB) · ${slides.length} slides`);
