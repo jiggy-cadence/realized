@@ -1,5 +1,32 @@
 # REALIZED
 
+<!-- Judge front door. The repo root carries build notes next to judge docs because the
+     README permalinks cite exact line numbers (v4.js#L101-L194 etc.) and moving files hours
+     before a deadline breaks those anchors for cosmetic gain. This map is the fix instead. -->
+
+### Start here
+
+| if you are… | read | why |
+|---|---|---|
+| **judging, 2 minutes** | [`FOR-JUDGES.md`](FOR-JUDGES.md) | problem, method, key numbers with ranges, 30-second reproduction |
+| **judging The Graph — AI track** | [`SKILL.md`](SKILL.md) + [`llms.txt`](llms.txt) | the agent surface: 7 MCP tools, reporting rules |
+| **judging The Graph — composability** | [`COMPOSABILITY.md`](COMPOSABILITY.md) | one query shape across 3 protocols / 4 chains / 6 venue-chain pairs |
+| **judging Uniswap** | [`FEEDBACK.md`](FEEDBACK.md) + [Verify our integration](#verify-our-integration--every-claim-at-its-line) | developer feedback citing Uniswap's own schema; every claim at its line |
+| **running it** | [Use it in 30 seconds](#use-it-in-30-seconds) | no API key needed, CORS open |
+| **checking our honesty** | [Honesty box](#honesty-box) · [Canaries](#canaries) | our own retractions, and the failure we shipped instead of a signal |
+
+**Repo layout**
+
+```
+packages/core/src/   the library — all math and subgraph access (start at realized.js, v4.js)
+bin/                 api.js (HTTP) · mcp-server.js (7 agent tools)
+scripts/             build-*.js regenerate everything; spike-hunt*/probe-* are the
+                     experiments we ran and published as failures, kept on purpose
+data/                generated corpora + the evidence behind published findings.
+                     Large and tracked deliberately — see REVIEW-GUARDRAILS.md before grepping
+test/                canary.test.js — the negative control this project exists for
+```
+
 > **TL;DR** — Every DEX shows liquidity providers an APR made only of fees, so it can never
 > display a loss. Realized computes the number that can: **fees + impermanent loss**, from The
 > Graph's historical `poolDayData`. Live site: **[realized.drainfun.xyz](https://realized.drainfun.xyz)**
