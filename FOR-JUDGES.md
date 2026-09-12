@@ -1,6 +1,7 @@
 # REALIZED — one page, for judges
 
-**ETHOnline 2026 · The Graph — AI Tooling / AI Use Case · also submitted to 1inch**
+**ETHOnline 2026 — submitted to three tracks:**
+**The Graph** (AI Tooling / AI Use Case, *Start Fresh* pool) · **The Graph** (Composable & Standardized Products) · **Uniswap** (Stack Contribution)
 
 Live: **[realized.drainfun.xyz](https://realized.drainfun.xyz)** · Deck: **[/deck](https://realized.drainfun.xyz/deck)** · Repo: **[jiggy-cadence/realized](https://github.com/jiggy-cadence/realized)**
 

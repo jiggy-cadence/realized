@@ -1,6 +1,13 @@
 # SHOT LIST — REALIZED demo video
 ### Companion to `TALKING-POINTS.md` (riff sheet + do-not-say list). This is the sequence.
 
+**Tracks:** The Graph — AI Tooling / AI Use Case (**Start Fresh** pool) · The Graph — Composable &
+Standardized Products · Uniswap — Stack Contribution. **Not 1inch** — that track is "Build an Aqua
+App" (Aqua/SwapVM contracts, onchain transfers) and we use 1inch only as an independent price and
+gas source. Saying "submitted to 1inch" on camera would be a claim a judge can falsify in one read.
+
+**Say "4 chains," never 5.** Optimism is queried but never clears its canary (`optimism.tight: null`).
+
 **Target 3:00. Seven shots.** Everything below is live and verified 2026-09-11 14:05 UTC.
 If a number on screen differs from this file, **the screen is right** — it recomputes every build.
 
@@ -175,7 +182,8 @@ Close on the deck's final slide:
 Cut in this order — **never cut 5 or 6.**
 1. Shot 3 (cherry-pick table) — the deck carries it
 2. Shot 2 (the cause) — Shot 1 implies it
-3. Trim Shot 4 to The Graph + 1inch only
+3. Trim Shot 4 to The Graph + the 1inch price cross-check only
+   (1inch is our *second opinion on price*, not a track we entered — keep the framing exact)
 
 Shots 5 and 6 are the two nobody else in the track will have.
 
