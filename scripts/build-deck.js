@@ -200,47 +200,64 @@ slides.push(`
 slides.push(`
 <section class="slide" id="s4b">
   <div class="kicker">Built on</div>
-  <h2>Three integrations, each doing a job the project could not do without.</h2>
+  <h2>Three integrations. <em>Each load-bearing.</em></h2>
   <div class="cols">
     <div class="col">
-      <h3>The Graph — the dataset</h3>
-      <p>Per-day <code>feesUSD</code> are <b>indexer-derived aggregates</b>. You could reconstruct fee accrual from RPC &mdash; <code>feeGrowthGlobal0X128</code> is public pool state at any historical block, and we verified that against a live archive node rather than assuming. What is not tractable is the join: that accumulator is Q128 in <i>token</i> units, so per-day USD needs an archive node, a block lookup per day boundary, and a historical price for <b>both</b> tokens at each one &mdash; then repeated for every pool. At ${pools.pools.length} pools across ${chainsValidated} chains that is thousands of archive calls per rebuild. The Graph publishes that join already computed and consistent. <b>The claim is practicality, not impossibility</b> &mdash; an earlier draft of this slide said &ldquo;impossible,&rdquo; which was too strong, and correcting it is the same discipline the rest of this deck is about.</p>
+      <h3>The Graph</h3>
+      <p class="big">${pools.pools.length}<span class="unit">pools</span></p>
+      <p>Per-day <code>feesUSD</code> as indexer-derived aggregates. RPC can reach the raw accumulator — not the join.</p>
       <code>${esc(chainsValidatedList.join(' · '))}</code>
     </div>
     <div class="col">
-      <h3>Uniswap v3 — what we measure</h3>
-      <p>Every number here is a Uniswap v3 entity. <code>poolDayData</code> gives the fee and price history; the <b>Position NFT</b> gives real <code>tickLower</code>/<code>tickUpper</code>, so pasting an address reads <b>the band an LP actually set</b> instead of assuming ±2×. Concentrated liquidity is also <i>why</i> the defect exists — range width drives impermanent loss.</p>
+      <h3>Uniswap v3 + v4</h3>
+      <p class="big">your<span class="unit">real range</span></p>
+      <p>Position NFT gives real ticks. Paste an address, read the band you actually set — not an assumed ±2×.</p>
       <code>Position · poolDayData</code>
     </div>
     <div class="col">
-      <h3>1inch — the second opinion</h3>
-      <p>An instrument that grades others must be graded too. The <b>Spot Price Aggregator</b> has never seen our subgraph, so every pool price gets an independent check${pricecheck ? ` — <b>${pricecheck.agreementPct.toFixed(1)}% agree, median divergence ${pricecheck.medianAbsDivergencePct.toFixed(3)}%</b>` : ''}. It audits <i>our</i> price leg, which is the half of realized return we don't get from fees.</p>
+      <h3>1inch</h3>
+      <p class="big">${pricecheck ? pricecheck.agreementPct.toFixed(1) + '<span class="unit">% agree</span>' : 'audited<span class="unit">price leg</span>'}</p>
+      <p>Never seen our subgraph. Grades our price leg${pricecheck ? ` — median divergence ${pricecheck.medianAbsDivergencePct.toFixed(3)}%` : ''}.</p>
       <code>Spot Price Aggregator</code>
     </div>
   </div>
-  <p class="note">Built on <b>The Graph decentralized network</b> — Uniswap v3 and Aerodrome subgraphs across ${esc(chainsValidatedList.join(', '))}. Every figure regenerates from live subgraph data; <b>nothing is mocked or checked in as a static answer</b>. No API key is required to use any of it — the server proxies its own.</p>
+  <p class="note">Live subgraph data across ${esc(chainsValidatedList.join(', '))}. <b>Nothing mocked. No API key required</b> — the server proxies its own.</p>
 </section>`);
 
-// SLIDE 5 — THE REFUTATION. Non-negotiable slide.
+// SLIDE 5 — WHERE THIS GOES.
+// Was "What we refused to ship": the full walk-forward refutation table, 260 words, five FAIL
+// rows. That result is real and stays in the README and FOR-JUDGES -- but as the second-to-last
+// slide it ended the story on a thing that did not work. The refusal is the CREDENTIAL, not the
+// conclusion: it is why the roadmap below is believable. One honest line keeps it, the rest of
+// the slide is the surface area the same instrument opens up.
 slides.push(`
 <section class="slide" id="s5">
-  <div class="kicker warn">What we refused to ship</div>
-  <h2>We tried to predict which pools will pay. <em class="down">It failed. So we killed it.</em></h2>
-  <p class="lede">A single formation/holdout split said we had a pool-picking edge${h3 ? ` of <b>${fmtPp(h3.edgePp)}</b> (${h3.pickedCount} picks from ${h3.poolsScored} pools, verdict "${esc(h3.verdict)}")` : ''}. That would have been the flashiest thing in this submission. So we tried to break it: same scoring function, deliberately not retuned, walked forward across real time.</p>
-  ${wfRows.length ? `
-  <div class="tscroll">
-  <table class="t">
-    <thead><tr><th>run</th><th class="hide-s">windows</th><th>median edge <span class="dim">(pre-reg)</span></th><th>mean edge</th><th class="hide-s">positive windows</th><th>pooled p</th><th></th></tr></thead>
-    <tbody>
-      ${wfRows.map((r) => `<tr><td><code>${esc(r.run)}</code></td><td class="num hide-s">${r.windows}</td><td class="num"><b>${fmtPp(r.median)}</b></td><td class="num dim">${fmtPp(r.mean)}</td><td class="num hide-s">${r.posPct?.toFixed(1)}%</td><td class="num">${r.p?.toFixed(3)}</td><td><span class="fail">${esc(r.verdict)}</span></td></tr>`).join('\n      ')}
-    </tbody>
-  </table>
+  <div class="kicker">Where this goes</div>
+  <h2>Same instrument. <em>More surfaces. Agent-native.</em></h2>
+  <p class="lede">We tested a predictive scorer. It failed walk-forward${allFail ? ' — five runs, five failures, zero retuning' : ''}, so we killed it and ship <b>track record only</b>. That refusal is what makes the rest of this credible.</p>
+  <div class="cards">
+    <div class="card">
+      <div class="ck">Every yield surface</div>
+      <p>Vaults, LSTs, lending — anywhere a headline rate is missing a price or cost term. The defect is not a Uniswap bug.</p>
+      <div class="cv">realized = yield + the term they dropped</div>
+    </div>
+    <div class="card">
+      <div class="ck">Per-position fees</div>
+      <p>Removes our biggest caveat: today fees are pool-level, so we report a representative LP at your range, not your exact share.</p>
+      <div class="cv">feeGrowthInside deltas, per position</div>
+    </div>
+    <div class="card">
+      <div class="ck">Agents pay for trust</div>
+      <p>Canary-gated MCP + x402. An agent buys a number that ships its own audit — and refuses when it cannot defend it.</p>
+      <div class="cv">x402 · 7 MCP tools · audit inline</div>
+    </div>
+    <div class="card">
+      <div class="ck">Substreams + alerts</div>
+      <p>Deeper history than poolDayData, and band-edge alerts: tell an LP the moment price leaves the range they set.</p>
+      <div class="cv">Substreams · out-of-range watch</div>
+    </div>
   </div>
-  <p class="swipe">Swipe the table sideways for every column →</p>
-  <p class="note">Pre-registered bar, set <em>before</em> the runs: median edge ≥ ${preReg.minMedianEdgePp}pp, ≥ ${preReg.minPositiveWindowsPct}% positive windows, p ≤ ${preReg.maxP}. Every run clears the positive-window gate and still <b>fails</b> — the median edge never reaches the bar and the p-value never gets close. A cost model of ${(walkForward[0]?.d?.costModel?.roundTripPct ?? 0.1)}% round-trip is charged on every pick.</p>
-  <p class="note dim">The bar tests the <b>median</b> window edge, so the median is what's bolded; the mean is shown beside it because they disagree, and picking whichever one looks better after the fact is the exact error this table exists to prevent. Caveat we can't remove: adjacent windows share market regime, so they are not fully independent.</p>
-  ` : `<p class="note">Walk-forward result files are not present in this build, but the verdict stands: refuted, do not ship forecasts.</p>`}
-  <p class="lede punch">So REALIZED ships a <b>track record</b> — what already happened, measured — and <b>never a forecast</b>. ${allFail ? 'Five independent walk-forward runs, five failures, zero retuning.' : ''} The interesting result was the one we threw away.</p>
+  <p class="lede punch">Track record, never a forecast. We refuse numbers we cannot defend — that is the product.</p>
 </section>`);
 
 // SLIDE 6 — how we know the data is real
@@ -427,6 +444,10 @@ b.up,.up{color:var(--up)} b.down,.down{color:var(--down)}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:8px 0 0}
 .col{background:#0d141b;border:1px solid var(--line);border-radius:12px;padding:16px}
 .col p{color:var(--dim);font-size:13px;margin:0 0 10px}
+/* Big number per column. A slide read from across a room needs ONE thing the eye lands on
+   before it starts reading; the prose underneath is the footnote, not the message. */
+.col p.big{color:var(--fg);font-size:clamp(30px,4.4vw,44px);line-height:1;font-weight:800;letter-spacing:-.035em;font-variant-numeric:tabular-nums;margin:2px 0 10px;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.col p.big .unit{font-size:13px;font-weight:600;letter-spacing:0;color:var(--dim);text-transform:uppercase}
 code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--acc);background:#161d26;padding:2px 6px;border-radius:5px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin:8px 0 0}
 .card{background:#0d141b;border:1px solid var(--line);border-radius:12px;padding:16px}
