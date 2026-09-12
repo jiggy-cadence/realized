@@ -1316,11 +1316,45 @@ function tvlLabel(v){
 function feeLine(f,p){
   if(!f) return '<span class="wpos-unk">not reported</span>';
   if(f.measurable){
-    return tokenAmt(f.collectedToken0,p&&p.token0Decimals)+' / '+tokenAmt(f.collectedToken1,p&&p.token1Decimals)
+    // collectedToken* arrive ALREADY scaled by token decimals (decimalsApplied:true). This used
+    // to call tokenAmt(), which divides by 10^decimals a second time -- 788,340 USDC rendered
+    // as "0.78834" with no unit. Jiggy caught it on a phone: ".78 eth? or what."
+    // Symbols are printed now too. A bare pair of numbers cannot be checked by a reader.
+    var s=String(p&&p.pair||'/').split('/');
+    return fmtFee(f.collectedToken0)+' '+esc(s[0]||'token0')
+      +' / '+fmtFee(f.collectedToken1)+' '+esc(s[1]||'token1')
       +' <span class="wpos-unk">collected</span>';
+  }
+  if(f.basis==='one-token-unattributed'){
+    // Show the magnitude, name the ambiguity. Blanking this row was the worse bug: "none
+    // recorded" asserts there are no fees, which is also false.
+    return '<b>'+fmtFee(f.collectedOneToken)+'</b> <span class="wpos-unk">one token \u2014 subgraph writes the same value to both slots, so it does not say which. We report the amount, not a guess.</span>';
   }
   if(f.basis==='earned-but-uncollected') return '<span class="wpos-unk">earned, never collected \u2014 not measurable</span>';
   return '<span class="wpos-unk">none recorded</span>';
+}
+
+// depositedToken0/1 ARE genuinely distinct and correct in this subgraph -- verified against
+// raw values (28.16 WETH / 83,031 USDT on one sampled position). We were showing nothing while
+// real, checkable data sat in the payload we already fetch. This is the position's actual size,
+// which is the number a reader can sanity-check against their own wallet.
+function depositLine(p){
+  var c=p.cumulative;
+  if(!c) return '<span class="wpos-unk">not reported</span>';
+  var s=String(p.pair||'/').split('/');
+  var d0=Number(c.depositedToken0||0), d1=Number(c.depositedToken1||0);
+  if(!d0 && !d1) return '<span class="wpos-unk">none recorded</span>';
+  return fmtFee(d0)+' '+esc(s[0]||'token0')+' + '+fmtFee(d1)+' '+esc(s[1]||'token1');
+}
+
+// Fee amounts are human-scale already. Show enough precision to be useful without pretending
+// to a precision the source does not have.
+function fmtFee(v){
+  var n=Number(v);
+  if(!isFinite(n)||n===0) return '0';
+  if(n<0.0001) return '<0.0001';
+  if(n<1) return n.toLocaleString('en-US',{maximumFractionDigits:6});
+  return n.toLocaleString('en-US',{maximumFractionDigits:2});
 }
 
 function renderWallet(d){
@@ -1362,7 +1396,8 @@ function renderWallet(d){
       +'</div>'
       +'<div class="wpos-grid">'
       +'<div><div class="wpos-k">Pool TVL</div><div class="wpos-v">'+tvlLabel(p.poolTvlUsd)+'</div></div>'
-      +'<div><div class="wpos-k">Fees (token0 / token1)</div><div class="wpos-v">'+feeLine(p.fees,p)+'</div></div>'
+      +'<div><div class="wpos-k">Deposited</div><div class="wpos-v">'+depositLine(p)+'</div></div>'
+      +'<div><div class="wpos-k">Fees collected</div><div class="wpos-v">'+feeLine(p.fees,p)+'</div></div>'
       +'<div><div class="wpos-k">Realized at YOUR range</div><div class="wpos-v"><a href="'+href+'" target="_blank" rel="noopener" style="color:var(--acc);text-decoration:none">compute \u2192</a></div></div>'
       +'</div></div>';
   }).join('');

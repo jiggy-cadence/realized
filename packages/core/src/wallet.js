@@ -180,13 +180,49 @@ export function describePosition(p) {
   const anyCollected = collected0 > 0 || collected1 > 0;
   const anyGrowth = growth0 !== '0' || growth1 !== '0';
 
-  const fees = anyCollected
+  // MEASURED 2026-09-12, and it retracts what this function used to report.
+  //
+  // Jiggy, reading a real position on his phone: "0.78834 / <0.0001 ... .78 eth? or what."
+  // Chasing the unit exposed two defects stacked on each other.
+  //
+  // 1. These fields are BigDecimals already scaled by token decimals, not raw integers. The
+  //    comment below used to claim the opposite, so consumers divided by 10^decimals a second
+  //    time and 788,340 USDC rendered as 0.78834.
+  //
+  // 2. The values are wrong at the source. collectedFeesToken0 === collectedFeesToken1, to the
+  //    last decimal place, on 40 of 40 sampled positions across unrelated pairs (USDC/WETH,
+  //    XOR/WETH, SQUIG/WETH). Two different tokens cannot accrue identical fee quantities;
+  //    this field is not reporting per-token fees at all.
+  //
+  // Fixing the scaling alone would have produced a confidently-formatted wrong number -- the
+  // exact failure this project exists to name. A defect we can PROVE is a defect we must not
+  // publish, so collected fees are withheld and the reason is returned in their place.
+  // Reopen only if the subgraph starts returning genuinely distinct token0/token1 values;
+  // `tokensIdentical` below is the canary that will say so.
+  const tokensIdentical = anyCollected && collected0 === collected1 && collected0 > 0;
+
+  const fees = anyCollected && !tokensIdentical
     ? {
         measurable: true,
         basis: 'collected',
         collectedToken0: collected0,
         collectedToken1: collected1,
-        note: 'Fees the position has actually collected on-chain. Any fees accrued since the last collect() are NOT included -- the subgraph does not expose them as a balance.',
+        decimalsApplied: true,
+        note: 'Fees this position has collected on-chain, already scaled by token decimals. Fees accrued since the last collect() are NOT included -- the subgraph does not expose them as a balance.',
+      }
+    : tokensIdentical
+    ? {
+        // The field is defective, but it is not empty. collectedFeesToken0 and
+        // collectedFeesToken1 carry the SAME value on 40 of 40 sampled positions across
+        // unrelated pairs, so exactly one of the two tokens is being reported and we cannot
+        // tell which. We publish the magnitude, name the ambiguity, and refuse to guess a
+        // token -- rather than either inventing an attribution or, as a first pass wrongly
+        // did, blanking the row entirely. A blank says "nothing here"; that is also false.
+        measurable: false,
+        basis: 'one-token-unattributed',
+        collectedOneToken: collected0,
+        reason:
+          'The subgraph writes the same number into collectedFeesToken0 and collectedFeesToken1, so this is one token\'s collected fees and the field does not say which. Verified as a field-level defect, not a wallet-level one: identical on 40 of 40 sampled positions across unrelated pairs. We report the amount and decline to attribute it.',
       }
     : {
         measurable: false,
