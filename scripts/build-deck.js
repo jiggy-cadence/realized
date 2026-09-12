@@ -294,9 +294,32 @@ const html = `<!doctype html>
 <title>REALIZED — deck</title>
 <meta name="description" content="ETHOnline 2026 submission deck for REALIZED: advertised LP APR has no price term, so it cannot show a loss.">
 <style>
-:root{--bg:#0b0f14;--fg:#e6edf3;--dim:#7d8590;--acc:#e07a5f;--good:#3fb950;--line:#1c2229;--card:#111820;--down:#ff6b6b;--up:#6fd89a}
+:root{--bg:#0b0f14;--fg:#e6edf3;--dim:#7d8590;--acc:#e07a5f;--good:#3fb950;--line:#1c2229;--card:#111820;--down:#ff6b6b;--up:#6fd89a;
+  /* from lobchan.ai/styles.css, Wayback 2026-01-31 -- same source as the landing page, so the
+     deck and the product read as one thing on camera instead of two designs */
+  --lobster:#ff4500;--grid-line:rgba(255,255,255,.05)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
+/* LOBCHAN GRID -- ported from the landing page so the video never cuts between two visual
+   languages. Fixed + z-index:-2: no layout cost, no interaction capture, and the slide cards
+   sit on top of it at full opacity so every number stays readable. */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+/* Lobster bloom, anchored top-centre: the grid is cold, this is the heat source. */
+body::after{
+  content:"";position:fixed;left:50%;top:-20vh;width:min(1200px,130vw);height:66vh;
+  transform:translateX(-50%);z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(255,69,0,.12),rgba(224,122,95,.045) 45%,transparent 72%);
+}
+::-webkit-scrollbar{width:12px;height:12px}
+::-webkit-scrollbar-track{background:#000}
+::-webkit-scrollbar-thumb{background:#333;border:2px solid #000}
+::-webkit-scrollbar-thumb:hover{background:var(--lobster)}
 .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
 /* DECK MODE (added 2026-09-12, Jiggy: "should take up a computer screen, not scroll").
    The page was 8 stacked cards you scrolled through -- fine to read, wrong to RECORD, because
@@ -416,6 +439,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
 /* Print/PDF: show every slide again, one per page. Deck mode must never cost us the export. */
 @media print{
   body{background:#fff}
+  body::before,body::after{display:none}
   .deck .slide{display:flex!important;min-height:auto;max-height:none;page-break-after:always;break-after:page}
   .deck .slide>.sbody{overflow:visible}
   .dnav,.dhint,.drail{display:none!important}
