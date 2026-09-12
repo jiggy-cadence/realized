@@ -47,12 +47,12 @@ Copy-paste MCP config for Claude Desktop / Cursor is in the [README](README.md#3
 
 | claim | value |
 |---|---|
-| Pools advertising positive while LPs realized negative | **37%** of the 102 pools clearing our liveness gate · **141 of 256** tracked overall |
-| Across assumed range widths (tight → full) | 62.1% · 55.1% · 46.9% · 37.1% |
+| Pools advertising positive while LPs realized negative | **37.3%** (38 of 102) of the pools clearing our liveness gate, at full range · **60.8%** of the same 102 at a tight range |
+| Across assumed range widths (tight → full) | 60.8% · 53.9% · 43.1% · 37.3% |
 | Independent windows tested | **110 of 110** show the defect at tight and moderate ranges |
 | Chains · venues | **4 chains · 6 venue/chain pairs** · Uniswap v3 + Aerodrome (different codebase, same defect shape) + Uniswap **v4** |
 | Wallet position reads | v3 (4 chains) from position **state**; v4 (mainnet) by **event reconstruction** — range only, no exit pricing |
-| 1inch price cross-check | **99.2% agreement** across 255 pools, median divergence **0.078%** |
+| 1inch price cross-check | **97.3% agreement** across 371 pools compared, median divergence **0.134%** |
 
 ## Why The Graph is load-bearing
 
@@ -60,7 +60,7 @@ Not because the data is unreachable by RPC — **we checked that claim and it wa
 `feeGrowthGlobal0X128` is public pool state readable at any historical block (verified against a
 live archive node, 2026-09-11). What isn't tractable is the join: a Q128 token-unit accumulator
 becomes per-day USD only with an archive node, a block lookup per day boundary, and a historical
-price for *both* tokens at each one — repeated per pool. At 256 pools across 4 chains that's
+price for *both* tokens at each one — repeated per pool. At 376 pools across 4 chains that's
 thousands of archive calls per rebuild. The Graph publishes that join already computed.
 
 **The claim is practicality, not impossibility.** We corrected it rather than keep the stronger-

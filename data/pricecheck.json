@@ -1,78 +1,78 @@
 {
- "generatedAt": "2026-09-10T22:30:39.899Z",
+ "generatedAt": "2026-09-12T03:23:21.598Z",
  "source": "1inch Spot Price Aggregator v1.1 vs Uniswap/Aerodrome subgraph token0Price",
  "method": "Independent USD prices for both tokens of each pool, ratio compared to the subgraph's own latest token0Price. 1inch has never seen our subgraph.",
  "threshold": 2,
  "counts": {
-  "poolsInCorpus": 256,
-  "compared": 255,
-  "unpriced": 1,
-  "agreeing": 253,
-  "disagreeing": 2
+  "poolsInCorpus": 376,
+  "compared": 371,
+  "unpriced": 5,
+  "agreeing": 361,
+  "disagreeing": 10
  },
- "agreementPct": 99.2156862745098,
- "medianAbsDivergencePct": 0.07819020010614514,
- "p90AbsDivergencePct": 0.5166410782420898,
+ "agreementPct": 97.30458221024259,
+ "medianAbsDivergencePct": 0.13373282706137565,
+ "p90AbsDivergencePct": 0.6698123450175455,
  "worstDivergences": [
+  {
+   "pair": "ETH/LSK",
+   "chain": "mainnet",
+   "tvl": 337391,
+   "divergencePct": 1874.847
+  },
   {
    "pair": "USDC/UST",
    "chain": "mainnet",
    "tvl": 626510,
-   "divergencePct": -99.479
+   "divergencePct": -99.491
+  },
+  {
+   "pair": "ETH/ELEVATE",
+   "chain": "mainnet",
+   "tvl": 633100,
+   "divergencePct": -98.821
   },
   {
    "pair": "WBTC/PAX",
    "chain": "mainnet",
    "tvl": 26674650,
-   "divergencePct": -75.464
+   "divergencePct": -75.725
   },
   {
-   "pair": "LDO/WETH",
+   "pair": "ETH/00",
    "chain": "mainnet",
-   "tvl": 10211709,
-   "divergencePct": -1.231
+   "tvl": 367876,
+   "divergencePct": 36.187
   },
   {
-   "pair": "USDC/CARV",
-   "chain": "base",
-   "tvl": 284146,
-   "divergencePct": 0.993
-  },
-  {
-   "pair": "WETH/CRV",
+   "pair": "WBTC/FOOM",
    "chain": "mainnet",
-   "tvl": 2892071,
-   "divergencePct": 0.977
+   "tvl": 594309,
+   "divergencePct": -36.104
   },
   {
-   "pair": "WETH/BRETT",
-   "chain": "base",
-   "tvl": 3782389,
-   "divergencePct": 0.759
-  },
-  {
-   "pair": "WETH/ARB",
-   "chain": "arbitrum",
-   "tvl": 1374875,
-   "divergencePct": -0.644
-  },
-  {
-   "pair": "USDC/WETH",
+   "pair": "ETH/ACX",
    "chain": "mainnet",
-   "tvl": 8815304,
-   "divergencePct": 0.634
+   "tvl": 574476,
+   "divergencePct": -32.857
   },
   {
-   "pair": "WETH/MAMO",
-   "chain": "base",
-   "tvl": 315286,
-   "divergencePct": -0.62
+   "pair": "ETH/XYO",
+   "chain": "mainnet",
+   "tvl": 402369,
+   "divergencePct": -10.457
   },
   {
-   "pair": "USDC/DIEM",
-   "chain": "base",
-   "tvl": 1182138,
-   "divergencePct": -0.618
+   "pair": "ETH/VIBE",
+   "chain": "mainnet",
+   "tvl": 1430814,
+   "divergencePct": 4.874
+  },
+  {
+   "pair": "ETH/SPK",
+   "chain": "mainnet",
+   "tvl": 790759,
+   "divergencePct": 3.86
   }
  ],
  "caveats": [

@@ -116,7 +116,11 @@ Point down the column: **59.1% → 45.4% → 36.0% → 25.6%**
 
 **1inch — the second opinion**
 > "An instrument that grades others has to be graded too. 1inch has never seen our subgraph.
-> **99.2% agreement, median divergence 0.078%.**"
+> **97.3% agreement, median divergence 0.134%** — 371 pools compared."
+
+*(If the number on screen differs, the screen is right — it recomputes every build. Agreement fell
+from 99.2% when the corpus grew 256 → 376: the added v4 pools are thinner and long-tail, where
+1inch routing is itself unreliable. A large divergence is `unconfirmed`, not `wrong`.)*
 
 ---
 

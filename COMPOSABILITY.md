@@ -15,7 +15,7 @@
 | Protocol codebases | **3** | Uniswap v3, Uniswap v4, Aerodrome (a Velodrome/Solidly fork) |
 | Chains | **4** | mainnet, Arbitrum, Polygon, Base |
 | Venue/chain pairs | **6** | live from [`/api/venues`](https://realized.drainfun.xyz/api/venues) |
-| Pools in the corpus | **256** | aerodrome/base 77 · uniswap-v3/mainnet 65 · uniswap-v3/base 59 · uniswap-v3/arbitrum 38 · uniswap-v3/polygon 17 |
+| Pools in the corpus | **376** | uniswap-v4/mainnet 112 · aerodrome/base 77 · uniswap-v3/mainnet 71 · uniswap-v3/base 59 · uniswap-v3/arbitrum 39 · uniswap-v3/polygon 18 |
 | **Venue-specific branches in the math** | **0** | `scorePool` contains no `if (dex === ...)` |
 | Pool-analytics query shapes | **1** | one `FIELDS` string, every venue |
 
@@ -45,7 +45,7 @@ VENUES map (6 pairs)                 packages/core/src/venues.js:9-26
    -> one FIELDS shape               scripts/build-pools.js:34-35
    -> one scoring/IL implementation  packages/core/src/realized.js:335  scorePool()
    -> one canary gate per venue      scripts/build-pools.js:52-58
-   -> one corpus                     api/pools.json (256 pools)
+   -> one corpus                     api/pools.json (376 pools)
 ```
 
 Adding a venue is **a map entry, not a code path**. `VENUES` is the only place a subgraph ID
@@ -59,7 +59,7 @@ for (const [dex, chains] of Object.entries(VENUES)) {
 
 **What became easier because of the shared shape:** Aerodrome is a different protocol by a
 different team, and it dropped into the corpus as four lines of config. It now contributes 77 of
-our 256 pools — the largest single venue — and it reaches the same verdict as Uniswap v3 through
+our 376 pools — the largest single v3-style venue — and it reaches the same verdict as Uniswap v3 through
 the same code. That cross-protocol agreement is what upgrades our central finding from "a Uniswap
 quirk" to "a property of concentrated-liquidity AMMs." A per-venue implementation would have made
 that comparison unfalsifiable, because any difference could have been blamed on our own code.
@@ -101,7 +101,7 @@ and the code contradicted each other, and the map was the one lying. Caught by c
 
 Beyond The Graph, prices are cross-checked against **1inch Spot Price**
 ([`packages/core/src/oneinch.js`](packages/core/src/oneinch.js)) — an aggregator independent of
-any single pool. Result across 255 pools: **99.2% agreement, median divergence 0.078%.**
+any single pool. Result across 371 pools compared: **97.3% agreement, median divergence 0.134%.**
 
 This is composition doing real work rather than logo-collecting: if the subgraph's `token0Price`
 had drifted from aggregate market price, every downstream IL number would be wrong in a way that

@@ -103,7 +103,7 @@ differentiator)
 **1inch — the second opinion.**
 - "An instrument that grades others has to be graded too."
 - Spot Price Aggregator has **never seen our subgraph**. Independent check on every pool price.
-- **99.2% agree, median divergence 0.078%** (255 pools compared).
+- **97.3% agree, median divergence 0.134%** (371 pools compared, 5 unpriced).
 - It audits *our price leg* — the half of realized return that doesn't come from fees.
 
 ---
@@ -154,8 +154,11 @@ Judges see a hundred projects claiming alpha. This is the slide that separates y
 - **Three cutoffs, always:** every headline reported at 3 liveness cutoffs. If it flips across
   them we label it **a parameter, not a finding**.
 - **Unmeasurable ≠ zero.** Missing price returns `measurable: false`, never a fabricated 0.
-- The two pools that disagree with 1inch — USDC/UST, WBTC/PAX — are **dead tokens with stale
-  subgraph prices**. "Finding them is the audit working."
+- The pools that disagree with 1inch — USDC/UST, ETH/ELEVATE, ETH/LSK — are **dead or thinly-routed
+  tokens with stale subgraph prices**. "Finding them is the audit working."
+- **If asked why agreement dropped from 99.2% to 97.3%:** the corpus grew 256 → 376 pools by adding
+  Uniswap v4. The new pools are thinner and include more long-tail pairs, where 1inch routing is
+  itself unreliable. A large divergence is `unconfirmed`, not `wrong` — that's in the data file.
 
 ---
 
@@ -206,7 +209,7 @@ Judges see a hundred projects claiming alpha. This is the slide that separates y
 
 **"How do I know your numbers are right?"**
 > Three ways. The stable-pair canary refuses to build if the instrument can't find a known
-> signal. 1inch independently checks every price — 99.2% agreement. And a test vector ships in
+> signal. 1inch independently checks every price — 97.3% agreement. And a test vector ships in
 > the API so you can verify our math yourself instead of trusting it.
 
 **"What's the weakest part?"**

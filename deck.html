@@ -91,16 +91,16 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
 <section class="slide" id="s1">
   <div class="kicker">The defect</div>
   
-  <h2>Advertised <b class="up">+0.65% APR</b>. Realized <b class="down">-36.2% APR</b>.</h2>
-  <p class="lede">USDC/WETH · uniswap-v3/mainnet · $414,601,681 TVL — the most-used pool in DeFi, live from The Graph.</p>
+  <h2>Advertised <b class="up">+0.15% APR</b>. Realized <b class="down">-39.4% APR</b>.</h2>
+  <p class="lede">USDC/WETH · uniswap-v3/mainnet · $417,652,721 TVL — the most-used pool in DeFi, live from The Graph.</p>
   <div class="money">
     <div class="mc"><span class="mk">You deposit</span><span class="mv">$100,000</span></div>
     <div class="ma">→ 30 days later, if the advertised number were real →</div>
-    <div class="mc"><span class="mk">Advertised</span><span class="mv up">$100,054</span></div>
+    <div class="mc"><span class="mk">Advertised</span><span class="mv up">$100,012</span></div>
     <div class="ma">→ what an LP actually took home →</div>
-    <div class="mc"><span class="mk">Realized</span><span class="mv down">$97,027</span></div>
+    <div class="mc"><span class="mk">Realized</span><span class="mv down">$96,761</span></div>
   </div>
-  <p class="note">Fees earned +0.33% of stake. Impermanent loss -3.30%. Net over the window: <b class="down">-2.97%</b>. Annualized once, labelled: -36.2% APR at a moderate ±2x range.</p>
+  <p class="note">Fees earned +0.34% of stake. Impermanent loss -3.58%. Net over the window: <b class="down">-3.24%</b>. Annualized once, labelled: -39.4% APR at a moderate ±2x range.</p>
   
 </section>
 
@@ -137,7 +137,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
   <div class="cols">
     <div class="col">
       <h3>For humans</h3>
-      <p>Pick a pool, pick your entry date, see what you actually made. 256 live pools across 5 venues.</p>
+      <p>Pick a pool, pick your entry date, see what you actually made. 376 live pools across 6 venues.</p>
       <code>realized.drainfun.xyz</code>
     </div>
     <div class="col">
@@ -160,7 +160,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
   <div class="cols">
     <div class="col">
       <h3>The Graph — the dataset</h3>
-      <p>Per-day <code>feesUSD</code> are <b>indexer-derived aggregates</b>. You could reconstruct fee accrual from RPC &mdash; <code>feeGrowthGlobal0X128</code> is public pool state at any historical block, and we verified that against a live archive node rather than assuming. What is not tractable is the join: that accumulator is Q128 in <i>token</i> units, so per-day USD needs an archive node, a block lookup per day boundary, and a historical price for <b>both</b> tokens at each one &mdash; then repeated for every pool. At 256 pools across 4 chains that is thousands of archive calls per rebuild. The Graph publishes that join already computed and consistent. <b>The claim is practicality, not impossibility</b> &mdash; an earlier draft of this slide said &ldquo;impossible,&rdquo; which was too strong, and correcting it is the same discipline the rest of this deck is about.</p>
+      <p>Per-day <code>feesUSD</code> are <b>indexer-derived aggregates</b>. You could reconstruct fee accrual from RPC &mdash; <code>feeGrowthGlobal0X128</code> is public pool state at any historical block, and we verified that against a live archive node rather than assuming. What is not tractable is the join: that accumulator is Q128 in <i>token</i> units, so per-day USD needs an archive node, a block lookup per day boundary, and a historical price for <b>both</b> tokens at each one &mdash; then repeated for every pool. At 376 pools across 4 chains that is thousands of archive calls per rebuild. The Graph publishes that join already computed and consistent. <b>The claim is practicality, not impossibility</b> &mdash; an earlier draft of this slide said &ldquo;impossible,&rdquo; which was too strong, and correcting it is the same discipline the rest of this deck is about.</p>
       <code>mainnet · arbitrum · polygon · base</code>
     </div>
     <div class="col">
@@ -170,7 +170,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
     </div>
     <div class="col">
       <h3>1inch — the second opinion</h3>
-      <p>An instrument that grades others must be graded too. The <b>Spot Price Aggregator</b> has never seen our subgraph, so every pool price gets an independent check — <b>99.2% agree, median divergence 0.078%</b>. It audits <i>our</i> price leg, which is the half of realized return we don't get from fees.</p>
+      <p>An instrument that grades others must be graded too. The <b>Spot Price Aggregator</b> has never seen our subgraph, so every pool price gets an independent check — <b>97.3% agree, median divergence 0.134%</b>. It audits <i>our</i> price leg, which is the half of realized return we don't get from fees.</p>
       <code>Spot Price Aggregator</code>
     </div>
   </div>
@@ -214,7 +214,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
     <div class="card">
       <div class="ck">Independent price audit</div>
       <p>1inch Spot Price Aggregator has never seen our subgraph. We compare every pool's price against it.</p>
-      <div class="cv">99.2% agree · median divergence 0.078%</div>
+      <div class="cv">97.3% agree · median divergence 0.134%</div>
     </div>
     <div class="card">
       <div class="ck">Three cutoffs, always</div>
@@ -240,6 +240,6 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;co
     <a href="/SKILL.md">SKILL.md</a>
   </div>
   <p class="note">ETHOnline 2026 · The Graph — AI Tooling / AI Use Case · The Graph — Composable &amp; Standardized Products · Uniswap — Stack Contribution. Built on the decentralized network across mainnet, arbitrum, polygon, base. Live corpus: 37.3% of measured pools currently advertise a positive APR while realizing a negative return.</p>
-  <p class="note dim">Deck generated 2026-09-12 03:15 UTC from the same data files that serve the API. If a number here disagrees with the API, the API is right and this page is stale — rebuild with <code>node scripts/build-deck.js</code>.</p>
+  <p class="note dim">Deck generated 2026-09-12 03:23 UTC from the same data files that serve the API. If a number here disagrees with the API, the API is right and this page is stale — rebuild with <code>node scripts/build-deck.js</code>.</p>
 </section>
 </div></body></html>

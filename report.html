@@ -57,23 +57,23 @@ Full-range is therefore the <b>most generous possible case for the pool</b> — 
 <table><thead><tr><th>LP range</th><th>median IL</th><th>median realized</th><th>knocked out of range</th><th>advertised + / real −</th></tr></thead>
 <tbody><tr>
   <td><b>tight</b> <span class="dim">±1.25x</span></td>
-  <td class="num">-1.49%</td>
-  <td class="num">-1.06%</td>
-  <td class="num">29/102</td>
-  <td class="num big">64%</td></tr><tr>
+  <td class="num">-1.67%</td>
+  <td class="num">-1.07%</td>
+  <td class="num">27/102</td>
+  <td class="num big">61%</td></tr><tr>
   <td><b>moderate</b> <span class="dim">±2x</span></td>
-  <td class="num">-0.54%</td>
-  <td class="num">-0.13%</td>
+  <td class="num">-0.60%</td>
+  <td class="num">-0.11%</td>
   <td class="num">0/102</td>
-  <td class="num big">53%</td></tr><tr>
+  <td class="num big">54%</td></tr><tr>
   <td><b>wide</b> <span class="dim">±4x</span></td>
-  <td class="num">-0.31%</td>
-  <td class="num">0.02%</td>
+  <td class="num">-0.35%</td>
+  <td class="num">0.04%</td>
   <td class="num">0/102</td>
-  <td class="num big">48%</td></tr><tr>
+  <td class="num big">43%</td></tr><tr>
   <td><b>full</b> <span class="dim">full-range</span></td>
-  <td class="num">-0.16%</td>
-  <td class="num">0.08%</td>
+  <td class="num">-0.18%</td>
+  <td class="num">0.10%</td>
   <td class="num">0/102</td>
   <td class="num big">37%</td></tr></tbody></table>
 <div class="box warn"><h3>Held deliberately unfair to us</h3><p>The fee term is constant across ranges.
@@ -148,20 +148,20 @@ in advance from an identity is a self-check; a correlation found by fishing woul
 
 <h2><span class="n">05</span>Honesty box</h2>
 <div class="box"><h3>Retracted: corr(advertised, realized) = 0.06</h3><p>It was this page's headline and it does
-<b>not reproduce</b> — it existed in no committed code. Recomputed honestly it spans Pearson 0.38–0.30
+<b>not reproduce</b> — it existed in no committed code. Recomputed honestly it spans Pearson 0.25–0.20
 depending on gate, trimming and estimator. That spread <i>is</i> the finding: quoting any single value as "the"
 correlation was the mistake. The headline is now the pool-count result, which is measured rather than estimated.</p></div>
 <table><thead><tr><th>liveness gate</th><th>n</th><th>Pearson</th><th>Spearman</th><th>trimmed 2% (P / S)</th></tr></thead>
 <tbody><tr>
-  <td><b>loose</b></td><td class="num">129</td>
-  <td class="num">0.382</td><td class="num">0.332</td>
-  <td class="num">0.326 / 0.329</td></tr><tr>
+  <td><b>loose</b></td><td class="num">130</td>
+  <td class="num">0.255</td><td class="num">0.287</td>
+  <td class="num">0.195 / 0.276</td></tr><tr>
   <td><b>mid</b></td><td class="num">102</td>
-  <td class="num">0.378</td><td class="num">0.338</td>
-  <td class="num">0.307 / 0.298</td></tr><tr>
-  <td><b>strict</b></td><td class="num">66</td>
-  <td class="num">0.394</td><td class="num">0.366</td>
-  <td class="num">0.299 / 0.339</td></tr></tbody></table>
+  <td class="num">0.251</td><td class="num">0.313</td>
+  <td class="num">0.187 / 0.296</td></tr><tr>
+  <td><b>strict</b></td><td class="num">62</td>
+  <td class="num">0.299</td><td class="num">0.386</td>
+  <td class="num">0.201 / 0.359</td></tr></tbody></table>
 <div class="box"><h3>Base first returned 0 of 30 trusted windows — the canary working</h3><p>Base's top pools by
 volume contained no stable/stable pair, so the instrument could not prove it measures IL correctly and refused to
 certify. The fix was to <b>fetch the canary its reference pools</b>, never to weaken the canary. Those pools are
@@ -175,7 +175,7 @@ instead of pretending to correct it.</p></div>
 13/13 trusted, defect in every one — but they are <b>not</b> independent samples.</p></div>
 
 <div class="foot">
-Corpus generated 2026-09-11 14:00 UTC ·
+Corpus generated 2026-09-12 03:22 UTC ·
 history 2026-09-07 04:57 UTC ·
 cross-DEX 2026-09-07 05:04 UTC<br>
 Source: The Graph decentralized network. Every number on this page is read from committed JSON —
