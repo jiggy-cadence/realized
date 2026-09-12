@@ -111,7 +111,7 @@ full lifecycle across owners) would let integrators report these honestly instea
 - **`poolDayData` made the core product possible.** Realized return = fees + impermanent loss needs
   per-day historical pool state for both tokens. We verified the alternative: `feeGrowthGlobal0X128`
   is readable at any historical block from an archive node, but the join (block lookup per day
-  boundary + historical price for both tokens, per pool, × 256 pools × 5 chains) is thousands of
+  boundary + historical price for both tokens, per pool, × 256 pools × 4 chains) is thousands of
   archive calls per rebuild. The subgraph publishes that join already computed.
 - **`ModifyLiquidity` cursor pagination on `id_gt` has no skip ceiling**, so complete event history
   is retrievable for busy wallets — our busiest sample needed 6 pages (5,205 events) in ~4s.

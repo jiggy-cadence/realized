@@ -65,9 +65,15 @@ Say that last part. It signals you know the literature and aren't overclaiming.
 
 **The Graph — the dataset.**
 - Per-day `feesUSD` are **indexer-derived aggregates that exist nowhere on-chain**.
-- "There is no RPC path to this. You cannot ask a node what an LP earned last Tuesday."
-- Without the decentralized network this measurement isn't harder — it's **impossible**.
-- 5 chains: mainnet, arbitrum, polygon, optimism, base.
+- "You *could* reconstruct fee accrual from RPC — we checked, rather than asserting. What isn't
+  tractable is the join: Q128 token-unit accumulators into per-day USD needs an archive node, a
+  block lookup per day boundary, and a historical price for both tokens at each one, per pool."
+- The claim is **practicality, not impossibility** — say it that way. An earlier draft said
+  "impossible" and that was too strong; the README already carries the correction.
+- **4 chains indexed: mainnet, arbitrum, polygon, base. 6 venue/chain pairs.**
+  (Optimism is queried by `history-run.js` but never clears the canary, so it is NOT quotable —
+  `data/history.json` has `optimism.tight: null`. Saying "5 chains" on camera inflates the claim
+  with a chain whose numbers we refuse to publish.)
 
 **Uniswap v3 — what we measure.**
 - Every number is a Uniswap v3 entity. `poolDayData` for fee and price history.
@@ -191,7 +197,7 @@ Judges see a hundred projects claiming alpha. This is the slide that separates y
 
 **"Isn't this just impermanent loss, which everyone knows?"**
 > IL is well known. What's not measured is that the advertised metric is *systematically*
-> uninformative about realized outcomes — pool by pool, across 5 chains, at every range width.
+> uninformative about realized outcomes — pool by pool, across 4 chains, at every range width.
 > We publish the calibration, not the concept.
 
 **"Why The Graph and not an RPC node?"**
