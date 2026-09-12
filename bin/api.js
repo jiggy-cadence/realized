@@ -217,10 +217,24 @@ async function liveWallet(owner, { dex = 'uniswap-v3', chain = 'mainnet', includ
   const id = subgraphId(dex, chain);
   if (!id) return { error: `unknown venue ${dex}/${chain}` };
 
+  // Address shape is validated HERE, before any venue branch, because each branch used to own
+  // its own guard and only one of them had it. fetchWalletPositions (v3) rejected malformed
+  // input with a 400; walletV4 had no check, so the same garbage address was interpolated
+  // straight into a GraphQL `where` and came back as a subgraph 500:
+  // "Failed to decode `Bytes` value: `Odd number of digits`". Measured 2026-09-11 against the
+  // live API with "0x996d...": v3 => 400 with a readable message, v4 => 500 leaking subgraph
+  // internals. Same malformed input, two different contracts, and the one an agent is most
+  // likely to hit was the one that failed worst. A validator that lives on one path is not a
+  // validator, it is a coincidence -- so it moves up to the dispatch point both paths cross.
+  const addr = String(owner || '').toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(addr)) {
+    return { error: `"${owner}" is not a 0x-prefixed 40-hex-character address` };
+  }
+
   // v4 answers through event reconstruction, not a Position-state read. Different evidence
   // class, different code path, and it reports ranges WITHOUT realized return on purpose.
   if (dex === 'uniswap-v4') {
-    return await walletV4(query, gatewayUrl(API_KEY, id), owner);
+    return await walletV4(query, gatewayUrl(API_KEY, id), addr);
   }
 
   // Aerodrome's subgraph does not expose the same Position entity, so say so rather than
