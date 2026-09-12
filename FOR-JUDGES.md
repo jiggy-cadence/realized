@@ -4,6 +4,9 @@
 
 Live: **[realized.drainfun.xyz](https://realized.drainfun.xyz)** · Deck: **[/deck](https://realized.drainfun.xyz/deck)** · Repo: **[jiggy-cadence/realized](https://github.com/jiggy-cadence/realized)**
 
+**Uniswap track:** developer feedback in **[`FEEDBACK.md`](FEEDBACK.md)** — v4's `Position` entity
+carries no tick range, `origin` vs `sender`, ~48% `amount:0` events, and the integration points to verify.
+
 ---
 
 ## The problem, in one sentence

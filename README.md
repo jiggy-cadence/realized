@@ -8,6 +8,10 @@
 > **Judging this?** [`FOR-JUDGES.md`](FOR-JUDGES.md) is the one-page version: problem, method,
 > key numbers with their ranges, what refuses to produce a number, what we deliberately did
 > *not* ship, and a 30-second reproduction.
+>
+> **Uniswap judges:** [`FEEDBACK.md`](FEEDBACK.md) is our developer feedback on the v3 and v4
+> subgraphs — what worked, and the four things that cost us build time, each with the file and
+> line it produced. Integration points to verify are listed at the bottom of that file.
 
 **The problem.** You provide liquidity, the dashboard says +12% APR, and months later your
 position is worth less than if you had done nothing. The dashboard was not lying about fees —
