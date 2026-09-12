@@ -176,13 +176,65 @@ const RANGES = [
 
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <title>REALIZED — what did you actually make as an LP?</title>
 <meta name="description" content="Advertised LP APR has no price term, so it cannot show a loss. Search any Uniswap v3 or Aerodrome pool and see what liquidity providers actually took home.">
 <link rel="alternate" type="application/json" href="api/pools" title="Raw data (agent-usable)">
 <style>
-:root{--bg:#0b0f14;--fg:#e6edf3;--dim:#7d8590;--acc:#e07a5f;--good:#3fb950;--line:#1c2229;--card:#111820}
+:root{--bg:#0b0f14;--fg:#e6edf3;--dim:#7d8590;--acc:#e07a5f;--good:#3fb950;--line:#1c2229;--card:#111820;
+  /* from lobchan.ai/styles.css, Wayback 2026-01-31 */
+  --lobster:#ff4500;--grid-line:rgba(255,255,255,.05);--mono:"Share Tech Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
+
+/* LOBCHAN GRID (2026-09-12, Jiggy: "full lobchan grid").
+   Recovered from the real thing rather than reconstructed from memory: Wayback capture of
+   lobchan.ai/styles.css, 2026-01-31 07:09:59. Its signature is not background art -- it is a
+   1px terminal grid at 40px pitch over near-black, with a lobster-orange accent (#ff4500,
+   close enough to our existing --acc that the palettes merge instead of fighting).
+   The earlier void.exe dendrite PNG is gone: 1MB and a hue-rotate hack to approximate a look
+   that is 4 lines of CSS when you read the source. Cheaper AND more faithful.
+   Fixed + z-index:-2 = zero layout cost, no interaction capture. The mask fades the grid out
+   behind body copy so contrast is never traded for mood -- every number stays readable. */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
+  background-size:40px 40px;
+  -webkit-mask-image:linear-gradient(180deg,#000 0,#000 55vh,rgba(0,0,0,.35) 95vh,rgba(0,0,0,.22) 100%);
+  mask-image:linear-gradient(180deg,#000 0,#000 55vh,rgba(0,0,0,.35) 95vh,rgba(0,0,0,.22) 100%);
+}
+/* Lobster bloom behind the headline: the grid is cold, this is the heat source. */
+body::after{
+  content:"";position:fixed;left:50%;top:-18vh;width:min(1200px,130vw);height:64vh;
+  transform:translateX(-50%);z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(255,69,0,.13),rgba(224,122,95,.05) 45%,transparent 72%);
+}
+/* Terminal scrollbar, lobster on hover -- straight from the captured stylesheet. */
+::-webkit-scrollbar{width:12px;height:12px}
+::-webkit-scrollbar-track{background:#000}
+::-webkit-scrollbar-thumb{background:#333;border:2px solid #000}
+::-webkit-scrollbar-thumb:hover{background:var(--lobster)}
+
+/* ENTRY POINTS. Three things a visitor can DO, above the reading. Previously the page led with
+   an essay and buried the pool search, the wallet box, and the agent surface below it -- so a
+   judge or an LP had to read to find out it was interactive at all. */
+.doors{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0 8px}
+.door{display:flex;flex-direction:column;gap:6px;text-align:left;background:rgba(17,24,32,.72);backdrop-filter:blur(8px);border:1px solid #24303d;border-radius:14px;padding:16px 16px 15px;cursor:pointer;font:inherit;color:var(--fg);transition:border-color .16s,transform .16s,background .16s}
+.door:hover{border-color:var(--acc);transform:translateY(-2px);background:rgba(22,31,41,.85)}
+.door:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.door-k{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;letter-spacing:-.01em}
+.door-k .ico{color:var(--acc);flex:none}
+.door-d{font-size:12px;color:var(--dim);line-height:1.45}
+@media(max-width:760px){.doors{grid-template-columns:1fr;gap:9px}.door{padding:13px 14px}}
+
+/* Try-an-address chips: a visitor with no wallet in mind still has something to click. */
+.tryaddr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:11px 0 0;font-size:12px;color:var(--dim)}
+.tryaddr button{font:inherit;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#0d141b;color:var(--acc);border:1px solid #2b3743;border-radius:7px;padding:5px 9px;cursor:pointer;transition:border-color .15s}
+.tryaddr button:hover{border-color:var(--acc)}
+.tryaddr button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .wrap{max-width:900px;margin:0 auto;padding:40px 20px 80px}
 header{margin-bottom:22px}
 .brand{font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:12px}
@@ -229,10 +281,21 @@ h1 em{color:var(--acc);font-style:normal}
 .ask-row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
 .ask-field{display:flex;flex-direction:column;gap:7px}
 .ask-pool{flex:1 1 320px;min-width:0}
-.ask-when{flex:0 0 190px}
+.ask-when{flex:0 0 190px;min-width:0}
 @media(max-width:620px){.ask-when{flex:1 1 100%}}
+/* Quick-pick range chips. A date picker is precise and slow; most people checking an LP
+   position think in "about a month ago", not in calendar dates. These set the date for them
+   and keep the picker for anyone who wants an exact day. */
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0}
+.quick button{font:inherit;font-size:11.5px;background:#0d141b;color:var(--dim);border:1px solid #2b3743;border-radius:999px;padding:5px 11px;cursor:pointer;transition:border-color .15s,color .15s}
+.quick button:hover{border-color:var(--acc);color:var(--acc)}
+.quick button.on{border-color:var(--acc);color:var(--acc);background:rgba(224,122,95,.08)}
+.quick button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .ask-field label{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:700}
-#entry{background:#0d131a;border:1.5px solid var(--line);border-radius:12px;color:var(--fg);font:inherit;font-size:15px;padding:14px 14px;outline:0;width:100%;color-scheme:dark;transition:border-color .15s}
+/* min-width:0 is load-bearing: without it a date input keeps its intrinsic width and pushes
+   out of the flex row, so on iOS the right edge of the control fell off the screen (Jiggy,
+   2026-09-12). max-width pins it inside the card regardless of the UA's preferred size. */
+#entry{background:#0d131a;border:1.5px solid var(--line);border-radius:12px;color:var(--fg);font:inherit;font-size:15px;padding:14px 12px;outline:0;width:100%;min-width:0;max-width:100%;color-scheme:dark;transition:border-color .15s;-webkit-appearance:none;appearance:none;text-align:center}
 #entry:focus{border-color:var(--acc)}
 .ask-hint{color:#5a6572;font-size:11.5px}
 .ask-examples{margin-top:14px;color:var(--dim);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -414,6 +477,20 @@ ${shock ? `
   Live from The Graph, recomputed every build. ${corpusHeadline ? `<strong>${corpusHeadline.misleadingPct.toFixed(0)}%</strong> of the ${corpusCounts?.liveVolatile ?? '?'} pools that clear our liveness gate are doing this right now — and <strong>${trustCounts.misleading}</strong> of the <strong>${trustCounts.total}</strong> pools we track overall.` : ''}</p>
   <button class="shock-cta" id="cta">Check your own position ↓</button>
 </div>
+<div class="doors">
+  <button class="door" id="door-pool" type="button">
+    <span class="door-k"><svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Check a pool</span>
+    <span class="door-d">Search ${pools.pools.length} live pools. See what LPs actually took home vs what was advertised.</span>
+  </button>
+  <button class="door" id="door-wallet" type="button">
+    <span class="door-k"><svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M16 12h3"/></svg>Read a wallet</span>
+    <span class="door-d">Paste any address — read-only, no signing. We read the range you actually set.</span>
+  </button>
+  <a class="door" href="#agents">
+    <span class="door-k"><svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 10h6M9 14h4"/></svg>For agents →</span>
+    <span class="door-d">MCP server, 7 tools, OpenAPI + SKILL.md. No key required.</span>
+  </a>
+</div>
 ` : `
 <header><h1>Did you actually make money as an <em>LP</em>?</h1>
 <p class="sub">Fees minus impermanent loss, live from The Graph.</p></header>
@@ -436,6 +513,12 @@ ${shock ? `
     <div class="ask-field ask-when">
       <label for="entry">2 · When did you enter?</label>
       <input id="entry" type="date" max="${new Date().toISOString().slice(0, 10)}">
+      <div class="quick" id="quick">
+        <button type="button" data-days="7">7d</button>
+        <button type="button" data-days="30">30d</button>
+        <button type="button" data-days="90">90d</button>
+        <button type="button" data-days="180">6mo</button>
+      </div>
       <div class="ask-hint" id="entryhint">Defaults to 30 days ago</div>
     </div>
   </div>
@@ -452,6 +535,11 @@ ${shock ? `
   <div class="wal-row">
     <input id="waddr" type="text" placeholder="0x\u2026 (Uniswap v3, mainnet)" autocomplete="off" spellcheck="false">
     <button class="wal-go" id="wgo">Read positions</button>
+  </div>
+  <div class="tryaddr">Don't have one handy? Read a real LP:
+    <button class="tryw" data-addr="0x5160ff5305abf515ac546f9f308bb841cc9f49b2">9 positions · WETH/USDT</button>
+    <button class="tryw" data-addr="0x102f1d5f92b1d30f24c1fcc9f182a278298cfd86">6 positions · USDC/WETH</button>
+    <button class="tryw" data-addr="0xd7919de25f782ee27cecddcc3042a1136fd80524">4 positions · tight bands</button>
   </div>
   <div class="wal-out" id="wout"></div>
 </div>
@@ -926,8 +1014,29 @@ function paintEntryHint(){
   const d=daysSinceEntry();
   entryHintEl.textContent = entryEl.value ? d+' days held' : 'Defaults to 30 days ago';
 }
-entryEl.addEventListener('change', ()=>{ paintEntryHint(); if(selected) refetchForEntry(); });
+entryEl.addEventListener('change', ()=>{ paintEntryHint(); paintQuick(); if(selected) refetchForEntry(); });
+
+// Quick-pick ranges. A date picker is exact and slow, and on iOS it also fell off the right
+// edge of the card. Most people checking an LP position think in "about a month ago", not in
+// calendar dates -- so offer the common spans and keep the picker for anyone who wants a
+// specific day. Highlighting whichever chip matches the current value keeps the two controls
+// from disagreeing about what is selected.
+const quickEl=document.getElementById('quick');
+function paintQuick(){
+  if(!quickEl) return;
+  const d=daysSinceEntry();
+  quickEl.querySelectorAll('button').forEach(b=>{
+    b.classList.toggle('on', entryEl.value && Math.abs(Number(b.dataset.days)-d)<=1);
+  });
+}
+if(quickEl) quickEl.querySelectorAll('button').forEach(b=>b.addEventListener('click', ()=>{
+  entryEl.value = iso(new Date(Date.now()-Number(b.dataset.days)*864e5));
+  paintEntryHint(); paintQuick();
+  if(selected) refetchForEntry();
+}));
+
 paintEntryHint();
+paintQuick();
 
 // Re-run the measurement against the chosen entry date. This is the same computation the
 // position_realized MCP tool performs -- the page is a client of its own API, not a
@@ -951,9 +1060,31 @@ async function refetchForEntry(){
 }
 
 // Example chips: let someone with no position in mind see the product work in one click.
+// Example-pool chips. These used to only FILL the search box and open the dropdown, so tapping
+// "WETH/USDC" left you staring at a list you then had to tap again -- and on a phone the
+// keyboard opened over the results (Jiggy, 2026-09-12). A chip that names a pool should open
+// that pool. Resolve it to the best matching pool and load it directly; only fall back to the
+// dropdown if nothing matches, which is the case where a human genuinely has to choose.
 document.querySelectorAll('.exbtn').forEach(b=>b.addEventListener('click', ()=>{
-  qEl.value=b.dataset.ex; clrEl.style.display='block'; renderDD(b.dataset.ex); qEl.focus();
+  const term=b.dataset.ex;
+  qEl.value=term; clrEl.style.display='block';
+  const hit=bestPoolFor(term);
+  if(hit){ closeDD(); qEl.blur(); pick(hit); }
+  else { renderDD(term); qEl.focus(); }
 }));
+
+// Highest-TVL pool whose pair matches the term. Exact pair match wins; otherwise any pool
+// containing the token. DATA is pre-sorted by TVL descending, so first match is the deepest.
+function bestPoolFor(term){
+  const t=String(term).toUpperCase();
+  const norm=(s)=>String(s).toUpperCase().replace(/\s+/g,'');
+  const exact=DATA.find(p=>norm(p.pair)===norm(t));
+  if(exact) return exact;
+  const flipped=t.includes('/')?t.split('/').reverse().join('/'):null;
+  if(flipped){ const f=DATA.find(p=>norm(p.pair)===norm(flipped)); if(f) return f; }
+  const tokens=t.split('/').filter(Boolean);
+  return DATA.find(p=>tokens.every(tok=>norm(p.pair).includes(norm(tok)))) || null;
+}
 
 // Shock-card CTA: the hero proved the defect exists; this is the handoff to "now check yours".
 const ctaEl=document.getElementById('cta');
@@ -961,6 +1092,33 @@ if(ctaEl) ctaEl.addEventListener('click', ()=>{
   document.getElementById('ask').scrollIntoView({behavior:'smooth',block:'start'});
   setTimeout(()=>qEl.focus(), 380);
 });
+
+// Entry-point doors. The page previously led with an essay, so a visitor could not tell it was
+// interactive without reading first. Each door lands on the control it names AND focuses it --
+// scrolling to a box you then have to click is half a handoff.
+const doorPool=document.getElementById('door-pool');
+if(doorPool) doorPool.addEventListener('click', ()=>{
+  document.getElementById('ask').scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>qEl.focus(), 380);
+});
+const doorWallet=document.getElementById('door-wallet');
+if(doorWallet) doorWallet.addEventListener('click', ()=>{
+  document.getElementById('wal').scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>{ const w=document.getElementById('waddr'); if(w) w.focus(); }, 380);
+});
+
+// Sample addresses: someone with no LP position of their own still gets to see a real read.
+// Public mainnet addresses, read-only either way. Each was VERIFIED live before shipping --
+// the first pair I picked from memory included one with zero open positions, which rendered
+// "No open positions" on the exact control meant to demo the product. Labels state the real
+// position count so the button promises what the response delivers.
+document.querySelectorAll('.tryw').forEach(b=>b.addEventListener('click', ()=>{
+  const w=document.getElementById('waddr');
+  if(!w) return;
+  w.value=b.dataset.addr;
+  const go=document.getElementById('wgo');
+  if(go) go.click();
+}));
 
 async function pick(p){
   qEl.value=p.pair; clrEl.style.display='block'; closeDD();
@@ -1167,8 +1325,28 @@ function feeLine(f,p){
 
 function renderWallet(d){
   if(d.error){ wOutEl.innerHTML='<div class="wal-err">'+esc(d.error)+'</div>'; return; }
-  if(!d.openPositions){
-    wOutEl.innerHTML='<div class="wpos-note">No open Uniswap v3 positions on mainnet for '+esc(shortAddr(d.owner))+'. Closed positions are excluded \u2014 they have no live range to reason about.</div>';
+
+  // SHAPE NORMALISATION. The no-dex wallet route returns the MULTI-VENUE shape -- a venues
+  // object keyed by dex, with no top-level positions array. This renderer indexed that array
+  // directly, so the sample-address buttons threw an undefined-is-not-an-object TypeError,
+  // caught by Jiggy on a phone, on the exact control meant to demo the product.
+  // Flatten every venue into one list and tag each entry with the venue it came from, rather
+  // than picking a winner: a wallet can legitimately hold v3 AND v4 positions, and showing
+  // only one venue would under-report what someone actually holds.
+  // NOTE: this whole function is inside a template literal, so no backticks and no dollar-brace
+  // in these comments -- that is what broke the build the first time.
+  if(!Array.isArray(d.positions) && d.venues){
+    const merged=[];
+    for(const [dex,v] of Object.entries(d.venues)){
+      if(!v || v.error || !Array.isArray(v.positions)) continue;
+      for(const p of v.positions) merged.push(Object.assign({}, p, {venue:dex}));
+    }
+    d=Object.assign({}, d, {positions:merged, openPositions:d.openPositions||merged.length});
+  }
+  if(!Array.isArray(d.positions)) d=Object.assign({}, d, {positions:[]});
+
+  if(!d.openPositions || !d.positions.length){
+    wOutEl.innerHTML='<div class="wpos-note">No open positions on mainnet for '+esc(shortAddr(d.owner))+' across '+esc((d.searched||['uniswap-v3']).join(' + '))+'. Closed positions are excluded \u2014 they have no live range to reason about.</div>';
     return;
   }
   const rows=d.positions.map(p=>{
