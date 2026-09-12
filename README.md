@@ -198,6 +198,54 @@ outcome was about **−14%**, because resolution was fee-only and arithmetically
 That call is the negative control in [`test/canary.test.js`](test/canary.test.js) — the test
 that failure never had.
 
+## Verify our integration — every claim, at its line
+
+*For Uniswap and The Graph judges: this table is the map. Each row is a claim we make somewhere
+else in this README, next to the exact code that implements it.*
+
+### Uniswap stack integration
+
+| what we integrated | where, exactly |
+|---|---|
+| **Uniswap v3 subgraph IDs, 4 chains** (mainnet, Arbitrum, Polygon, Base) | [`venues.js:10-15`](packages/core/src/venues.js#L10-L15) |
+| **Uniswap v4 subgraph ID** (mainnet) | [`venues.js:20-22`](packages/core/src/venues.js#L20-L22) · [`v4.js:30`](packages/core/src/v4.js#L30) |
+| **v3 position-state read** — the range is on the NFT, so `tickLower`/`tickUpper` is a lookup | [`wallet.js:121-144`](packages/core/src/wallet.js#L121-L144) (`POSITION_FIELDS`) · fetch at [`wallet.js:146`](packages/core/src/wallet.js#L146) |
+| **v4 position reconstruction** — the v4 `Position` entity has no tick range, so we replay events | [`v4.js:101-194`](packages/core/src/v4.js#L101-L194) (`reconstructPositions`) |
+| **v4 paging by `origin`, not `sender`** (`sender` is the position manager contract — returns zero rows) | [`v4.js:39-93`](packages/core/src/v4.js#L39-L93), query at [`v4.js:58`](packages/core/src/v4.js#L58) |
+| **v4 `amount: 0` filter** — ~48% of events are fee-collection no-ops; counting them invents positions | [`v4.js:107`](packages/core/src/v4.js#L107) and [`v4.js:216`](packages/core/src/v4.js#L216) |
+| **v4 transferred-in positions** — net-negative keys classified, size withheld | [`v4.js:140-153`](packages/core/src/v4.js#L140-L153) (`incompleteHistory`) |
+| **v4 self-audit shipped in every response** (`audit.checks[]` + `allPass`) | [`v4.js:196-251`](packages/core/src/v4.js#L196-L251) (`auditReconstruction`) |
+| **Per-venue capability map** — v4 is `realizedReturn:false, exitSimulation:false` on purpose | [`venues.js:38-74`](packages/core/src/venues.js#L38-L74) (`CAPABILITIES`) |
+| **Concentrated-liquidity IL math** (v3/v4 range geometry, not the v2 formula) | [`concentrated.js:17-54`](packages/core/src/concentrated.js#L17-L54) |
+| **Developer feedback for the Uniswap track** | [`FEEDBACK.md`](FEEDBACK.md) |
+
+### The Graph integration
+
+| what | where, exactly |
+|---|---|
+| **Gateway URL built from a Subgraph Studio key** (live data, no mocks) | [`realized.js:43-46`](packages/core/src/realized.js#L43-L46) (`gatewayUrl`) |
+| **The single query function every venue and chain goes through** | [`realized.js:48-69`](packages/core/src/realized.js#L48-L69) (`query`) |
+| **`poolDayData` historical fetch** — the join that makes realized return computable | [`realized.js:86-166`](packages/core/src/realized.js#L86-L166) |
+| **Realized return = fees + IL**, one implementation for all venues/chains | [`realized.js:251-321`](packages/core/src/realized.js#L251-L321) (`positionRealized`) |
+| **Exit simulation** with live gas and measured-zero slippage | [`realized.js:168-249`](packages/core/src/realized.js#L168-L249) |
+| **Venue/chain resolution** — one map, not one code path per chain | [`venues.js:81-89`](packages/core/src/venues.js#L81-L89) (`subgraphId`, `venueList`) |
+| **MCP server, 7 tools** | [`bin/mcp-server.js`](bin/mcp-server.js) — tool defs at lines [24](bin/mcp-server.js#L24), [44](bin/mcp-server.js#L44), [73](bin/mcp-server.js#L73), [104](bin/mcp-server.js#L104), [136](bin/mcp-server.js#L136), [155](bin/mcp-server.js#L155), [167](bin/mcp-server.js#L167) |
+| **HTTP API** (`/api/wallet`, `/api/position`, `/api/simulate-exit`, `/api/venues`) | [`bin/api.js`](bin/api.js) — venue dispatch + address validation at [`api.js:216-240`](bin/api.js#L216-L240) |
+
+### The refusals — where we decline to produce a number
+
+These are the lines that make the honesty claims checkable rather than rhetorical.
+
+| refusal | where |
+|---|---|
+| **Uncollected fees → `measurable:false`, never `$0`** (of 150 positions reading zero collected, 71 had real accrued fees) | [`wallet.js:174-200`](packages/core/src/wallet.js#L174-L200) (`describePosition`), rationale at [`wallet.js:241`](packages/core/src/wallet.js#L241) |
+| **Truncated v4 event history → `openPositions:null`**, positions withheld entirely | [`v4.js:253-300`](packages/core/src/v4.js#L253-L300) (`walletV4`) |
+| **Aerodrome wallet lookup → explicit error** (no per-owner Position entity) | [`venues.js:64-72`](packages/core/src/venues.js#L64-L72) · [`api.js:229`](bin/api.js#L229) |
+| **Malformed address → `400` on every venue path** | [`api.js:216-232`](bin/api.js#L216-L232) |
+| **Stable-pair canary fails → the build refuses to write output** | [`test/canary.test.js`](test/canary.test.js) |
+
+---
+
 ## What this is
 
 An MCP server + library that computes **realized** LP return from The Graph's historical
