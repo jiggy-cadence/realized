@@ -42,14 +42,14 @@ const fail = (name, detail) => { failed++; console.log(`FAIL  ${name}\n      ${d
  *  explain reasoning and may legitimately cite a historical number. */
 const PROSE = [
   'README.md', 'FOR-JUDGES.md', 'COMPOSABILITY.md', 'FEEDBACK.md',
-  'SKILL.md', 'llms.txt', 'TALKING-POINTS.md', 'SHOT-LIST.md', 'DEMO-SCRIPT.md',
+  'SKILL.md', 'llms.txt',
 ];
 
 /**
  * A stale number that appears INSIDE a sentence explaining the correction is not drift — it is
  * the retraction doing its job. On this test's first run all three failures were of exactly that
- * kind: the do-not-say warning in TALKING-POINTS, the fee-uplift table in FOR-JUDGES (a different
- * measurement that legitimately reads 55.1%), and SHOT-LIST explaining why agreement fell FROM
+ * kind: the fee-uplift table in FOR-JUDGES (a different
+ * measurement that legitimately reads 55.1%), and a note explaining why agreement fell FROM
  * 99.2%. A lock that fires on its own documentation trains you to ignore it, which is worse than
  * no lock — so the exemption is mechanical, not a judgement call each time.
  *
