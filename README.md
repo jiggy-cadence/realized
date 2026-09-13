@@ -81,7 +81,7 @@ curl "https://realized.drainfun.xyz/api/position/0x88e6a0c2ddd26feeb64f039a2c412
 | you are | you get |
 |---|---|
 | **an LP** | the real number for a position you already hold, at your entry date and range |
-| **a dashboard / protocol team** | an API + npm package so your UI can stop showing a metric that cannot go negative |
+| **a dashboard / protocol team** | an API + library in this repo so your UI can stop showing a metric that cannot go negative |
 | **an AI agent** | an MCP server whose tools answer "did this pool actually pay?" instead of reciting APR |
 
 ### Use it in 30 seconds
@@ -293,8 +293,8 @@ verified live against an archive node on 2026-09-11. So fee *accrual* is reconst
 
 What isn't cheap is everything after that. The accumulator is a Q128 value in token units, so
 per-day USD requires an archive node, a block lookup for each day boundary, a historical price
-for **both** tokens at each boundary, and the whole thing repeated per pool. For a 256-pool,
-5-chain, daily-resolution corpus that is thousands of archive calls per rebuild.
+for **both** tokens at each boundary, and the whole thing repeated per pool. For a 376-pool,
+4-chain, daily-resolution corpus that is thousands of archive calls per rebuild.
 
 So the honest claim is **practicality, not impossibility**: The Graph publishes that join
 already computed and consistent across every pool we measure. An earlier version of this README
@@ -413,7 +413,7 @@ a state read never has.** Three of those gaps are handled explicitly, each found
 - **Removals with no matching add** mean the position was transferred in — its adds happened under
   a different `origin`. Reported as `incompleteHistory[]` with the reason, size deliberately
   withheld. Neither dropped silently nor counted as liquidity.
-- **Over 5000 events, we report nothing.** `openPositions: null` plus an explicit error. Found by
+- **Over 60000 events, we report nothing.** `openPositions: null` plus an explicit error. Found by
   running the reconstruction across five unrelated wallets: two hit the fetch cap and reported
   **1471 and 501 "open positions"** while every consistency check passed. A truncated sum is
   self-consistent and wrong — **consistency is not completeness.** The audit now checks both, and

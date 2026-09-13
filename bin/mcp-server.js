@@ -13,11 +13,11 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import {
   gatewayUrl, fetchPool, fetchPoolFrom, fetchTopPools, scorePool, positionRealized, simulateExit, summarize, sensitivity, isLive, DEFAULT_LIVENESS,
 } from '../lib/realized.js';
-import { concentratedIlPct, outOfRange, RANGES } from '../lib/concentrated.js';
-import { exitGasCost } from '../packages/core/src/oneinch.js';
+import { concentratedIlPct, outOfRange, RANGES } from '../lib/concentrated.js'; import { subgraphId } from '../lib/venues.js';
+import { exitGasCost } from '../packages/core/src/oneinch.js'; import { readFileSync } from 'node:fs';
 
-const API_KEY = process.env.GRAPH_API_KEY;
-const URL = () => gatewayUrl(API_KEY);
+const API_KEY = process.env.GRAPH_API_KEY; const POOLS = JSON.parse(readFileSync(new URL('../data/pools.json', import.meta.url)));
+const URL = () => gatewayUrl(API_KEY); const venueFor = (id) => { const h = POOLS.pools.find((p) => String(p.id).toLowerCase() === String(id).toLowerCase()); return { dex: h?.dex || 'uniswap-v3', chain: h?.chain || 'mainnet' }; }; const v4off = (dex) => dex === 'uniswap-v4' ? { error: 'uniswap-v4 realizedReturn is false — reconstructed liquidity is not priced. Use /api/wallet?dex=uniswap-v4 for ranges only.', measurable: false } : null;
 
 const TOOLS = [
   {
@@ -247,8 +247,9 @@ async function findPool({ query: q, limit = 5 }) {
 }
 
 async function realizedReturn({ poolId, days = 30, rangeWidthX }) {
-  const pool = await fetchPool(URL(), poolId, days);
-  if (!pool) return { error: `pool ${poolId} not found in the Uniswap v3 subgraph` };
+  const v = venueFor(poolId); if (v4off(v.dex)) return v4off(v.dex);
+  const pool = await fetchPool(gatewayUrl(API_KEY, subgraphId(v.dex, v.chain)), poolId, days);
+  if (!pool) return { error: `pool ${poolId} not found on ${v.dex}/${v.chain}` };
   const scored = scorePool(pool);
   if (!scored.measurable || !(rangeWidthX > 1)) return scored;
   const il = concentratedIlPct(scored.priceRatio, rangeWidthX);
@@ -281,8 +282,9 @@ async function positionRealizedTool({ poolId, entryDate, rangeWidthX = 2 }) {
     if (Number.isNaN(d.getTime())) return { error: `could not parse entryDate "${entryDate}" as an ISO date or unix timestamp` };
     ts = Math.floor(d.getTime() / 1000);
   }
-  const pool = await fetchPoolFrom(URL(), poolId, ts);
-  if (!pool) return { error: `pool ${poolId} not found in the Uniswap v3 subgraph` };
+  const v = venueFor(poolId); if (v4off(v.dex)) return v4off(v.dex);
+  const pool = await fetchPoolFrom(gatewayUrl(API_KEY, subgraphId(v.dex, v.chain)), poolId, ts);
+  if (!pool) return { error: `pool ${poolId} not found on ${v.dex}/${v.chain}` };
   const pos = positionRealized(pool, rangeWidthX);
   if (!pos.measurable) return pos;
   return {
@@ -306,9 +308,10 @@ async function simulateExitTool({ poolId, entryDate, rangeWidthX = 2, stakeUsd =
   }
   const stake = Number(stakeUsd);
   if (!(stake > 0)) return { error: 'stakeUsd must be a positive number' };
-  const pool = await fetchPoolFrom(URL(), poolId, ts);
-  if (!pool) return { error: `pool ${poolId} not found in the Uniswap v3 subgraph` };
-  const gas = await exitGasCost({ chain: 'mainnet' });
+  const v = venueFor(poolId); if (v4off(v.dex)) return v4off(v.dex);
+  const pool = await fetchPoolFrom(gatewayUrl(API_KEY, subgraphId(v.dex, v.chain)), poolId, ts);
+  if (!pool) return { error: `pool ${poolId} not found on ${v.dex}/${v.chain}` };
+  const gas = await exitGasCost({ chain: v.chain });
   return simulateExit(pool, rangeWidthX, stake, { gas, consolidate });
 }
 

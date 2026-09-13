@@ -93,7 +93,7 @@ differentiator)
   you can detect exactly where it's weaker.*
 - Three guards worth naming if asked: ~48% of v4 events are `amount:0` fee no-ops (counting them
   invents positions); removals with no matching add = transferred in, reported as
-  `incompleteHistory` with size withheld; over 5000 events we return **nothing** rather than a
+  `incompleteHistory` with size withheld; over 60000 events we return **nothing** rather than a
   truncated sum — found when 5 test wallets all "passed" while two reported 1471 phantom positions.
 - **Aerodrome is pool-level only** — no per-owner Position entity, so no wallet lookup. Our own
   capability map claimed otherwise until we tested it.

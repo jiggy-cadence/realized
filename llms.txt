@@ -67,7 +67,7 @@ are on v3. They are reconstructed by summing signed `ModifyLiquidity.amount` per
   before using the numbers.**
 - `incompleteHistory[]` lists ranges where liquidity was REMOVED with no matching add in this
   wallet's events (position most likely transferred in). Their size is deliberately not reported.
-- If the wallet has more than 5000 ModifyLiquidity events the fetch is truncated and the endpoint
+- If the wallet has more than 60000 ModifyLiquidity events the fetch is truncated and the endpoint
   returns `openPositions: null` with an `error` instead of a partial sum. A truncated sum is
   self-consistent and wrong, so no numbers are reported at all.
 - Queried by `origin` (the EOA). `sender` is the position manager contract and matches nothing.

@@ -493,6 +493,9 @@ const server = createServer(async (req, res) => {
             () => liveWallet(owner, { dex: 'uniswap-v4', chain, includeClosed })).catch((e) => ({ error: String(e?.message || e) })),
         ]);
 
+        if (/not a 0x-prefixed/.test(String(v3?.error || '')) && /not a 0x-prefixed/.test(String(v4?.error || ''))) {
+          return json(res, 400, { error: v3.error });
+        }
         const found = [];
         if (!v3?.error && v3?.openPositions > 0) found.push('uniswap-v3');
         if (!v4?.error && v4?.openPositions > 0) found.push('uniswap-v4');

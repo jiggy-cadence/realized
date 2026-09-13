@@ -108,8 +108,8 @@ The Graph", which is the point. Don't cut to a cached screenshot; a judge can te
 > aggregates the indexer produces** — they don't exist on-chain. There's no RPC path to this
 > dataset. Take The Graph out and there is no product.
 >
-> So we shipped it as infrastructure, not a website. An **MCP server** with six tools, a public
-> **HTTP API**, and an **npm package**."
+> So we shipped it as infrastructure, not a website. An **MCP server** with seven tools, a public
+> **HTTP API**, and a **library in this repo** (not on npm)."
 
 **ON SCREEN:** the `rank_pools` output.
 

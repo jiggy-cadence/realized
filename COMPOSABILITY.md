@@ -113,7 +113,7 @@ is invisible from inside the subgraph. Live gas for exit simulation comes from t
 ## Reproduce the whole pipeline
 
 ```bash
-# Rebuild the entire 6-pair, 256-pool corpus from live Graph data
+# Rebuild the entire 6-pair, 376-pool corpus from live Graph data
 GRAPH_API_KEY=<subgraph-studio-key> node scripts/build-pools.js
 
 # Inspect the standardized output
