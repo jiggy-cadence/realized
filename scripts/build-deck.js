@@ -167,6 +167,7 @@ slides.push(`
   </div>
   <p class="lede punch">The direction never flips. The tighter your position, the more the advertised number lies.</p>
   <p class="note">Same pools, same window — only the assumed range changes. Full-range is the <em>most generous</em> case for the pool and the defect is still there. ${chainsValidated} chains: ${esc(chainsValidatedList.join(', '))}.</p>
+  <p class="note dim">These percents are the <em>median across 110 walk-forward windows</em>, not the live share of 102 gated pools (that one is in FOR-JUDGES: 60.8% · 53.9% · 43.1% · 37.3%). Same direction, different statistic — do not quote them as one number.</p>
   <p class="note dim">Fees held constant across ranges, deliberately unfair to us — concentrating earns more fees too. Direction is what we claim; magnitudes are bounded by that caveat.</p>
 </section>`);
 
@@ -191,8 +192,8 @@ slides.push(`
     <div class="col">
       <h3>For builders</h3>
       <p class="big">1<span class="unit">closed form</span></p>
-      <p>The math is an installable package — same formula the page and API use.</p>
-      <code>@realized-lp/core</code>
+      <p>The math is <code>packages/core</code> in the repo — same formula the page and API use. Not an npm publish.</p>
+      <code>packages/core</code>
     </div>
   </div>
   <p class="lede punch">A test vector ships <em>inside</em> the API response — verify our math instead of trusting it.</p>

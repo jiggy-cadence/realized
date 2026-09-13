@@ -53,8 +53,8 @@ whether this is AI tooling or a dashboard. Show the tooling.
 
 *Now* bring the human view up, as proof the same engine serves both.
 
-> "This is USDC/WETH — the most-used pool in DeFi. It advertised **+0.65% APR**.
-> An LP who put in $100,000 walked out with **$97,027**."
+> "This is USDC/WETH — the most-used pool in DeFi. It advertised **[APR from demo-refresh.js]**.
+> An LP who put in $100,000 walked out with **[actually-have from demo-refresh.js]**."
 
 *Beat.*
 

@@ -29,7 +29,7 @@ Requirement: 2–4 min. We aim ~2:00 — judges watch ~40 of these. Short and de
 **ON SCREEN:** the live shock card, full width. Do not scroll yet.
 
 > "This is the biggest pool on Uniswap v3. USDC/WETH, four hundred million dollars in it.
-> The interface advertises **plus zero point six five percent APR**.
+> The interface advertises **[advertised APR from `node scripts/demo-refresh.js` — never +0.65 from this file]**.
 
 <!-- v4 NOTE (added 2026-09-11): the wallet box now searches Uniswap v3 AND v4 together. If you
      demo a wallet read, see the "Uniswap v4" beat in SHOT-LIST.md / TALKING-POINTS.md. Two hard
@@ -163,15 +163,16 @@ printf '%s\n%s\n' \
 ⏱ **takes ~60–90s to return.** Either pre-run it and have the output on screen, or start it,
 keep narrating, and cut the dead air in the edit. **Do not sit in silence waiting.**
 
-**Optional third beat — the npm/library angle (only if under time):**
+**Optional third beat — the library angle (only if under time):**
 
 ```bash
-node -e "import('@realized-lp/core').then(m=>console.log('IL at 2x, full-range:', m.impermanentLossPct(2).toFixed(2)+'%', '| ranged ±2x:', m.concentratedIlPct(2,2).toFixed(2)+'%'))"
+node --input-type=module -e "import { impermanentLossPct, concentratedIlPct } from './packages/core/src/index.js'; console.log('IL at 2x, full-range:', impermanentLossPct(2).toFixed(2)+'%', '| ranged ±2x:', concentratedIlPct(2,2).toFixed(2)+'%')"
 ```
 
 ---
 
-## LIVE NUMBERS AS OF 2026-09-10 18:32 UTC (re-verify before recording)
+## STALE SNAPSHOT — 2026-09-10 18:32 UTC. DO NOT READ ON CAMERA.
+Run `node scripts/demo-refresh.js` and narrate that printout. The +0.65% / −$2,973 row below is a dead card.
 
 | beat | number | source |
 |---|---|---|

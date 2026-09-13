@@ -703,7 +703,7 @@ ${(() => {
 <div class="agents" id="agents">
   <h2>For agents &amp; builders</h2>
   <p class="sub">Humans read the card above. Agents should never scrape it — every number on this
-  page is available as JSON, an npm package, or an MCP tool. Same computation, one code path.</p>
+  page is available as JSON, a library in this repo, or an MCP tool. Same computation, one code path.</p>
   <div class="agrid">
     <div class="acard">
       <h3>HTTP · no key, no install</h3>
@@ -717,14 +717,14 @@ ${shock ? shock.id : '0x88e6...5640'}?entry=2026-07-28&amp;range=2"</code></pre>
       <h3>MCP · for AI agents</h3>
       <pre><code>node bin/mcp-server.js</code></pre>
       <p><code>find_pool</code> · <code>position_realized</code> · <code>realized_return</code> ·
-      <code>audit_pools</code> · <code>explain_gap</code> · <strong><code>rank_pools</code></strong>
+      <code>simulate_exit</code> · <code>audit_pools</code> · <code>explain_gap</code> · <strong><code>rank_pools</code></strong>
       — the last one ranks by what LPs actually took home and labels how honest each advertised
       number has been. That is the call a yield dashboard should make <em>instead of</em>
       sorting by APR.</p>
     </div>
     <div class="acard">
-      <h3>Library · npm</h3>
-      <pre><code>npm i @realized-lp/core</code></pre>
+      <h3>Library · in the repo</h3>
+      <pre><code>git clone https://github.com/jiggy-cadence/realized && cd realized && npm install</code></pre>
       <p><code>impermanentLossPct(r)</code> and <code>concentratedIlPct(r, w)</code> are pure
       functions — no network, no key, no dependencies. Drop them into any dashboard so it can
       stop showing a metric that cannot go negative.</p>

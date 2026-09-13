@@ -165,12 +165,12 @@ Judges see a hundred projects claiming alpha. This is the slide that separates y
 ## For the AI-tooling track (~15s)
 
 - CORS-open JSON, **no API key required** — we proxy our own Graph key server-side.
-- **MCP server**, 6 tools: `find_pool`, `realized_return`, `position_realized`, `audit_pools`,
-  `rank_pools`, `explain_gap`.
+- **MCP server**, 7 tools: `find_pool`, `realized_return`, `position_realized`, `simulate_exit`,
+  `audit_pools`, `rank_pools`, `explain_gap`. Gas/slippage on `simulate_exit` stay unavailable unless a verified source exists — that was never a retraction of the tool.
 - **OpenAPI 3.1 spec** at `/openapi.json` — agents never have to guess a request shape.
 - **A test vector ships in the API response** — real inputs, real expected output. "Implement the
   formula, run it, check you match. An agent shouldn't have to take our word for it."
-- npm: `@realized-lp/core`. The math is installable, not a repo you read.
+- Library: `packages/core` in the GitHub repo. **Not published to npm** — do not say `npm i @realized-lp/core`.
 
 ---
 
