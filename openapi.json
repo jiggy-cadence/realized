@@ -183,7 +183,7 @@
             "schema": {
               "type": "number"
             },
-            "description": "Assumed range width multiplier. 1.25 = tight, 2 = moderate, 4 = wide, 1e8 \u2248 full-range (v2-equivalent). Omit for the server default.",
+            "description": "Assumed range width multiplier. 1.25 = tight, 2 = moderate, 4 = wide, 1e8 \u2248 full-range (v2-equivalent). Omit for the server default. Alias query name: rangeWidthX (same number).",
             "example": 2
           },
           {
@@ -250,7 +250,7 @@
               "type": "number",
               "default": 2
             },
-            "description": "Range width multiplier the LP actually set. Get the real one from /api/wallet/{address} instead of assuming."
+            "description": "Range width multiplier the LP actually set. Get the real one from /api/wallet/{address} instead of assuming. Alias query name: rangeWidthX (same number)."
           },
           {
             "$ref": "#/components/parameters/Dex"
@@ -334,7 +334,7 @@
               "type": "number",
               "default": 2
             },
-            "description": "Range width the LP actually set. Get the real one from /api/wallet/{address}."
+            "description": "Range width the LP actually set. Get the real one from /api/wallet/{address}. Alias query name: rangeWidthX (same number)."
           },
           {
             "name": "stake",

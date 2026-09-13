@@ -15,7 +15,7 @@
 | Protocol codebases | **3** | Uniswap v3, Uniswap v4, Aerodrome (a Velodrome/Solidly fork) |
 | Chains | **4** | mainnet, Arbitrum, Polygon, Base |
 | Venue/chain pairs | **6** | live from [`/api/venues`](https://realized.drainfun.xyz/api/venues) |
-| Pools in the corpus | **376** | uniswap-v4/mainnet 112 · aerodrome/base 77 · uniswap-v3/mainnet 71 · uniswap-v3/base 59 · uniswap-v3/arbitrum 39 · uniswap-v3/polygon 18 |
+| Pools in the corpus | **376** | scored HTTP **/api/pools = 264** (v4 112 dropped: realizedReturn false). v4 112 · aero 77 · v3 mainnet 71 · v3 base 59 · v3 arb 39 · v3 polygon 18 |
 | **Venue-specific branches in the math** | **0** | `scorePool` contains no `if (dex === ...)` |
 | Pool-analytics query shapes | **1** | one `FIELDS` string, every venue |
 

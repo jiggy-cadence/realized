@@ -272,7 +272,7 @@ export function describePosition(p) {
 /** The disclosure the UI and the API both surface, so neither can quietly drop it. */
 export const WALLET_LIMITS = {
   measured: '2026-09-11, Uniswap v3 mainnet subgraph, n=200 live positions',
-  weReport: ['which pools the wallet holds', 'the real tick range of each position', 'realized return at THAT range instead of an assumed one'],
+  weReport: ['which pools the wallet holds', 'the real tick range of each position', 'widthX to pass into /api/position — this payload is discovery, not P&L'],
   weDoNotReport: ['per-position fee income when fees are uncollected', 'position value at entry'],
   why: 'collectedFees* is a withdrawal record, not an earnings record: of 150 sampled positions with collectedFeesToken0 == 0, 71 had non-zero feeGrowthInside0LastX128 -- they earned fees and never collected. deposited*/withdrawn* are lifetime cumulative, so 75% of positions read as one-sided. Reporting $0 fees or an entry value from these fields would reproduce the advertised-APR defect this project exists to expose.',
 };

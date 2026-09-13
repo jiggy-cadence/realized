@@ -1403,7 +1403,7 @@ function renderWallet(d){
     const rl=rangeLabel(p.range);
     // The actionable link: this position's REAL width, handed to the position endpoint.
     const w=p.range&&!p.range.fullRange&&p.range.widthX?p.range.widthX:null;
-    const href='/api/position/'+encodeURIComponent(p.poolId)+'?entry=' + ENTRY_DEFAULT + (w?'&range='+encodeURIComponent(w.toFixed(4)):'&range=1e8');
+    const pid=p.poolId||(p.pool&&p.pool.id); const href=(!pid||p.venue==='uniswap-v4')?'#':('/api/position/'+encodeURIComponent(pid)+'?entry=' + ENTRY_DEFAULT + (w?'&range='+encodeURIComponent(w.toFixed(4)):'&range=1e8'));
     return '<div class="wpos">'
       +'<div class="wpos-top"><span class="wpos-pair">'+esc(p.pair)+'</span>'
       +(p.feeTierPct!==null?'<span class="wpos-tag">'+p.feeTierPct+'% fee</span>':'')

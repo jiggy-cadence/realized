@@ -65,7 +65,7 @@ Say that out loud; it pre-empts the cherry-pick objection before a judge forms i
 
 ---
 
-## SHOT 2 — Why it can't show a loss · 0:25–0:50
+## SHOT 2b — Why it can't show a loss · 0:55–1:15
 **Screen:** `/deck`, "The cause" slide.
 
 > "Advertised APR is fees ÷ liquidity, annualized. Fees are always ≥ 0. So the number is

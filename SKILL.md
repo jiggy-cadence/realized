@@ -22,7 +22,7 @@ the number that can: `realized = fees + impermanent loss`.
 curl -s https://realized.drainfun.xyz/api/pools
 ```
 
-376 live pools across 6 validated venue/chain pairs. The response embeds its own `schema` and the exact
+376-pool corpus (264 scored; v4 rows excluded — realizedReturn false). Schema embeds the exact
 impermanent-loss formula in `howToComputeRealizedReturn`, so you can compute any range yourself
 with no further docs. Fields per pool:
 
@@ -33,7 +33,7 @@ with no further docs. Fields per pool:
 | `r` | price ratio over the window (exit ÷ entry) |
 | `fees` | fee income over window, % of entry TVL |
 | `adv` | **advertised** APR % — what the DEX UI shows |
-| `days` | window length |
+| `days` | poolDayData **row count**, not calendar elapsed |
 
 ### Compute realized return for any range
 
@@ -46,9 +46,9 @@ function il(r, w) {                      // w = range half-width: 1.25 tight, 2 
   else pos = 2 * Math.sqrt(r) - sa - r / sb;
   return ((pos / ((1 - sa) + (1 - 1 / sb) * r)) - 1) * 100;
 }
-const realizedPct = pool.fees + il(pool.r, 2);
-const realizedApr = (realizedPct / pool.days) * 365;
-const misleading  = pool.adv > 0 && realizedApr < 0;   // advertised a profit you didn't get
+const realizedPct = pool.fees + il(pool.r, 2);         // window take-home; quote THIS
+const realizedApr = (realizedPct / pool.days) * 365;   // optional label, not "what they made"
+const misleading  = pool.adv > 0 && realizedPct < 0;   // advertised profit, window was a loss
 ```
 
 **`r <= 1/w` or `r >= w` means price left the band** — the LP is fully converted into the losing
