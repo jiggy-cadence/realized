@@ -48,6 +48,24 @@ const API_KEY = process.env.GRAPH_API_KEY;
 
 const POOLS = JSON.parse(readFileSync(join(ROOT, 'data/pools.json'), 'utf8'));
 
+function venueFromCache(poolId) {
+  const hit = POOLS.pools.find((p) => String(p.id).toLowerCase() === String(poolId).toLowerCase());
+  return hit ? { dex: hit.dex, chain: hit.chain } : null;
+}
+
+function resolveVenue(poolId, dexParam, chainParam) {
+  const cached = venueFromCache(poolId);
+  return {
+    dex: dexParam || cached?.dex || 'uniswap-v3',
+    chain: chainParam || cached?.chain || 'mainnet',
+  };
+}
+
+/** v4 has no tick-range on Position; venues.js sets realizedReturn:false. Dynamic-fee flag 0x800000 was also mis-scaled as 838.8608%. */
+function scoredCorpusPools() {
+  return POOLS.pools.filter((p) => p.dex !== 'uniswap-v4');
+}
+
 const GATES = [
   { label: 'loose', gate: { minActiveDays: 20, minRecent7dVolumeUsd: 10_000, minTvlUsd: 100_000 } },
   { label: 'mid', gate: DEFAULT_LIVENESS },
@@ -136,6 +154,9 @@ async function liveFind(q, limit = 5, { venues = [{ dex: 'uniswap-v3', chain: 'm
 }
 
 async function livePool(poolId, { days = 30, range } = {}, dex = 'uniswap-v3', chain = 'mainnet') {
+  if (dex === 'uniswap-v4') {
+    return { error: 'uniswap-v4 realizedReturn is false — ranges are reconstructed from events, not priced. See /api/venues and /api/wallet?dex=uniswap-v4.', measurable: false };
+  }
   const id = subgraphId(dex, chain);
   if (!id) return { error: `unknown venue ${dex}/${chain}` };
   const pool = await fetchPool(gatewayUrl(API_KEY, id), poolId, days);
@@ -144,15 +165,22 @@ async function livePool(poolId, { days = 30, range } = {}, dex = 'uniswap-v3', c
   if (!scored.measurable || !(range > 1)) return scored;
   const il = concentratedIlPct(scored.priceRatio, range);
   const realizedPct = scored.feeReturnPct + il;
+  const yourRange = {
+    rangeWidthX: range,
+    impermanentLossPct: il,
+    realizedReturnPct: realizedPct,
+    realizedAprPct: (realizedPct / scored.windowDays) * 365,
+    outOfRange: outOfRange(scored.priceRatio, range),
+  };
+  // Headline used to stay full-range even when ?range= was set; agents read the top-level
+  // IL and ignored yourRange. Promote the requested range so the query means what it says.
   return {
     ...scored,
-    yourRange: {
-      rangeWidthX: range,
-      impermanentLossPct: il,
-      realizedReturnPct: realizedPct,
-      realizedAprPct: (realizedPct / scored.windowDays) * 365,
-      outOfRange: outOfRange(scored.priceRatio, range),
-    },
+    rangeWidthX: range,
+    impermanentLossPct: il,
+    realizedReturnPct: realizedPct,
+    realizedAprPct: yourRange.realizedAprPct,
+    yourRange,
   };
 }
 
@@ -164,6 +192,9 @@ async function livePool(poolId, { days = 30, range } = {}, dex = 'uniswap-v3', c
  * (MCP, HTTP, UI). If this ever disagrees with the MCP tool, that is a bug, not a variant.
  */
 async function livePosition(poolId, { entry, range = 2 } = {}, dex = 'uniswap-v3', chain = 'mainnet') {
+  if (dex === 'uniswap-v4') {
+    return { error: 'uniswap-v4 realizedReturn is false — will not price a position off reconstructed liquidity.', measurable: false };
+  }
   const id = subgraphId(dex, chain);
   if (!id) return { error: `unknown venue ${dex}/${chain}` };
   if (!entry) return { error: 'entry is required, e.g. ?entry=2026-08-01 (ISO date or unix timestamp)' };
@@ -275,6 +306,9 @@ async function liveWallet(owner, { dex = 'uniswap-v3', chain = 'mainnet', includ
  * positionRealized. One fetch, two framings of the same verified numbers.
  */
 async function liveSimulateExit(poolId, { entry, range = 2, stake = 10_000, consolidate = false } = {}, dex = 'uniswap-v3', chain = 'mainnet') {
+  if (dex === 'uniswap-v4') {
+    return { error: 'uniswap-v4 exitSimulation is false — will not price an exit off reconstructed liquidity.', measurable: false };
+  }
   const id = subgraphId(dex, chain);
   if (!id) return { error: `unknown venue ${dex}/${chain}` };
   if (!entry) return { error: 'entry is required, e.g. ?entry=2026-08-01 (ISO date or unix timestamp)' };
@@ -342,9 +376,16 @@ const server = createServer(async (req, res) => {
       // words, and the fields realizedAprPct/gapPts/misleading already precomputed on
       // each pool object by build-pools.js -- so an agent should rarely need the formula
       // at all except to double-check a different range width.
-      const worked = POOLS.pools.find((x) => x.realizedAprPct !== null) || POOLS.pools[0];
+      const scored = scoredCorpusPools();
+      const worked = scored.find((x) => x.realizedAprPct !== null) || scored[0];
       return json(res, 200, {
         ...POOLS,
+        pools: scored,
+        corpusSize: POOLS.pools.length,
+        excluded: {
+          uniswapV4: POOLS.pools.length - scored.length,
+          reason: 'v4 realizedReturn is false (no tick range on Position). Dynamic-fee 0x800000 rows were in this set and printed as 838% fee / million-% APR.',
+        },
         schema: {
           pair: 'token0/token1 symbols', dex: 'uniswap-v3 | aerodrome', chain: 'mainnet | arbitrum | polygon | base',
           fee: 'pool fee tier, percent', tvl: 'current TVL, USD', r: 'price ratio over window (exit/entry)',
@@ -381,16 +422,18 @@ const server = createServer(async (req, res) => {
       }
       return json(res, 200, {
         query: q, source, matches,
-        note: matches.length ? 'pass matches[].poolId to /api/pool/{poolId}' : 'no match in the 202-pool cache or a live mainnet lookup',
+        note: matches.length
+          ? 'pass matches[].poolId plus matches[].dex and matches[].chain to /api/pool/{poolId}?dex=&chain= (id alone defaults to the cached venue, then uniswap-v3/mainnet)'
+          : 'no match in the cached corpus or a live mainnet lookup',
       });
     }
 
     if (p.startsWith('/api/pool/')) {
       const poolId = decodeURIComponent(p.slice('/api/pool/'.length));
-      const range = url.searchParams.get('range') ? Number(url.searchParams.get('range')) : undefined;
+      const rangeRaw = url.searchParams.get('range') || url.searchParams.get('rangeWidthX');
+      const range = rangeRaw ? Number(rangeRaw) : undefined;
       const days = Number(url.searchParams.get('days') || 30);
-      const dex = url.searchParams.get('dex') || 'uniswap-v3';
-      const chain = url.searchParams.get('chain') || 'mainnet';
+      const { dex, chain } = resolveVenue(poolId, url.searchParams.get('dex'), url.searchParams.get('chain'));
       const out = await cached('pool', `${dex}|${chain}|${poolId.toLowerCase()}|${days}|${range ?? 'none'}`,
         () => livePool(poolId, { days, range }, dex, chain));
       return json(res, out.error ? 404 : 200, out);
@@ -399,9 +442,8 @@ const server = createServer(async (req, res) => {
     if (p.startsWith('/api/position/')) {
       const poolId = decodeURIComponent(p.slice('/api/position/'.length));
       const entry = url.searchParams.get('entry') || '';
-      const range = Number(url.searchParams.get('range') || 2);
-      const dex = url.searchParams.get('dex') || 'uniswap-v3';
-      const chain = url.searchParams.get('chain') || 'mainnet';
+      const range = Number(url.searchParams.get('range') || url.searchParams.get('rangeWidthX') || 2);
+      const { dex, chain } = resolveVenue(poolId, url.searchParams.get('dex'), url.searchParams.get('chain'));
       const out = await cached('pool', `pos|${dex}|${chain}|${poolId.toLowerCase()}|${entry}|${range}`,
         () => livePosition(poolId, { entry, range }, dex, chain));
       return json(res, out.error ? 400 : 200, out);
@@ -413,11 +455,10 @@ const server = createServer(async (req, res) => {
     if (p.startsWith('/api/simulate-exit/')) {
       const poolId = decodeURIComponent(p.slice('/api/simulate-exit/'.length));
       const entry = url.searchParams.get('entry') || '';
-      const range = Number(url.searchParams.get('range') || 2);
+      const range = Number(url.searchParams.get('range') || url.searchParams.get('rangeWidthX') || 2);
       const stake = Number(url.searchParams.get('stake') || 10_000);
       const consolidate = url.searchParams.get('consolidate') === 'true';
-      const dex = url.searchParams.get('dex') || 'uniswap-v3';
-      const chain = url.searchParams.get('chain') || 'mainnet';
+      const { dex, chain } = resolveVenue(poolId, url.searchParams.get('dex'), url.searchParams.get('chain'));
       const out = await cached('pool', `exit|${dex}|${chain}|${poolId.toLowerCase()}|${entry}|${range}|${stake}|${consolidate}`,
         () => liveSimulateExit(poolId, { entry, range, stake, consolidate }, dex, chain));
       return json(res, out.error ? 400 : 200, out);

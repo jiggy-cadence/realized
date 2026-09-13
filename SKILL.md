@@ -22,7 +22,7 @@ the number that can: `realized = fees + impermanent loss`.
 curl -s https://realized.drainfun.xyz/api/pools
 ```
 
-202 live pools across 4 validated venues. The response embeds its own `schema` and the exact
+376 live pools across 6 validated venue/chain pairs. The response embeds its own `schema` and the exact
 impermanent-loss formula in `howToComputeRealizedReturn`, so you can compute any range yourself
 with no further docs. Fields per pool:
 

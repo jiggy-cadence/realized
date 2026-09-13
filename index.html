@@ -692,7 +692,7 @@ generated 2026-09-12 03:22 UTC.</p>
   <th data-k="pair">Pool</th>
   <th data-k="tvl">TVL</th>
   <th data-k="adv">Advertised</th>
-  <th data-k="realApr" class="hide-s">Typical-range reality</th>
+  <th data-k="windowPct" class="hide-s">Typical 30-day take-home</th>
   <th data-k="trustLabel">Trust</th>
 </tr></thead><tbody id="tb"></tbody></table>
 
@@ -764,7 +764,7 @@ generated 2026-09-12 03:22 UTC.</p>
       <ul>
         <li>Uniswap v3 on 4 chains + Aerodrome on Base — 376 pools</li>
         <li>Any position, any entry date, any range width</li>
-        <li>HTTP API, MCP server, npm package</li>
+        <li>HTTP API, MCP server, library in this repo (not on npm)</li>
         <li>110 monthly windows of walk-forward validation, per-window canary</li>
       </ul>
     </div>
@@ -928,7 +928,7 @@ function il(r, w){
 }
 const oor=(r,w)=>r<=1/w||r>=w;
 const f=(v,d)=>v===null||v===undefined?'—':(v>=0?'+':'')+v.toFixed(d===undefined?1:d)+'%';
-const compute=(p,w)=>{const l=il(p.r,w), rz=p.fees+l, apr=(rz/p.days)*365; return {il:l, realApr:apr, out:oor(p.r,w), mis:p.adv>0&&apr<0};};
+const compute=(p,w)=>{const l=il(p.r,w), rz=p.fees+l, apr=(rz/p.days)*365, floored=rz<-100, windowPct=floored?-100:rz; return {il:l, realApr:apr, windowPct, floored, out:oor(p.r,w), mis:p.adv>0&&windowPct<0};};
 
 // ---------- search + autocomplete ----------
 const qEl=document.getElementById('q'), ddEl=document.getElementById('dd'), clrEl=document.getElementById('clr');
@@ -939,6 +939,7 @@ function search(term){
   if(!t) return [];
   const starts=[], contains=[];
   for(const p of DATA){
+    if(p.dex==='uniswap-v4') continue; // realizedReturn false; dynamic-fee rows were garbage
     const up=p.pair.toUpperCase();
     if(up.split('/').some(s=>s.startsWith(t))) starts.push(p);
     else if(up.includes(t)) contains.push(p);
@@ -1240,14 +1241,14 @@ function paintCard(){
   const c=compute(selected, r.w);
   document.getElementById('vd').innerHTML = `
     <div><b>${f(selected.adv)}</b><span>advertised APR</span></div>
-    <div><b class="${c.realApr<0?'bad':'ok'}">${f(c.realApr)}</b><span>what an LP in this range actually made</span></div>
+    <div><b class="${c.windowPct<0?'bad':'ok'}">${f(c.windowPct)}${c.floored?'*':''}</b><span>what an LP in this range actually made · ${selected.days}-day window</span></div>
     <div><b>${f(c.il,2)}</b><span>impermanent loss over the window</span></div>`;
   const cal=document.getElementById('cal');
   if(c.out){
     cal.innerHTML = '<div class="callout warn"><b>Price left this band during the window.</b> You would have been fully converted into the losing asset — the loss is realized, not impermanent, and staying in range would need active rebalancing.</div>';
   } else if(c.mis){
     cal.innerHTML = '<div class="callout warn"><b>Misleading:</b> this pool advertised a positive APR while an LP at this range actually lost money over the last '+selected.days+' days.</div>';
-  } else if(c.realApr>=0){
+  } else if(c.windowPct>=0){
     cal.innerHTML = '<div class="callout fine">Consistent with what was advertised — this pool did not exhibit the defect at this range, this window.</div>';
   } else {
     cal.innerHTML = '';
@@ -1257,13 +1258,13 @@ function paintCard(){
 // ---------- browse table ----------
 let sortKey='tvl', sortDir=-1;
 function renderTable(){
-  const rows = DATA.map(p=>({...p, ...compute(p, 2)})); // table always shows "typical" ±2x for comparability
+  const rows = DATA.filter(p=>p.dex!=='uniswap-v4').map(p=>({...p, ...compute(p, 2)})); // typical ±2x; v4 excluded (no realized)
   rows.sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; return (typeof x==='string')?sortDir*x.localeCompare(y):sortDir*(x-y);});
   document.getElementById('tb').innerHTML = rows.slice(0,100).map(p=>`<tr data-pair="${p.pair}" data-id="${p.id}">
     <td>${p.pair}<div style="color:#5a6572;font-size:11px;font-weight:400">${p.dex} · ${p.chain}</div></td>
     <td>$${(p.tvl/1e6).toFixed(1)}M</td>
     <td>${f(p.adv)}</td>
-    <td class="hide-s ${p.realApr<0?'bad':'ok'}">${f(p.realApr)}</td>
+    <td class="hide-s ${p.windowPct<0?'bad':'ok'}">${f(p.windowPct)}${p.floored?'*':''}</td>
     <td class="trust-${(p.trustLabel||'unmeasurable').split(' ')[0].replace(/[^a-z]/g,'')}">${p.trustLabel||'unmeasurable'}</td></tr>`).join('');
   document.querySelectorAll('#tb tr').forEach(tr=>{
     tr.onclick=()=>{ const match=DATA.find(p=>p.id===tr.dataset.id); if(match) pick(match); };
