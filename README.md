@@ -55,20 +55,22 @@ your range.
 
 ### A real position
 
-```
-USDC/WETH · entered 2026-07-28 · held 45 days · ±2x range
+Snapshot **as of 2026-09-13** from the live API (not a remembered card). The 30-day hero
+on the landing page is a different window; do not mix them.
 
-  advertised APR      +2.58%   ← what the DEX showed
-  fees earned         +0.48%
-  impermanent loss    -2.57%
+```
+USDC/WETH · entered 2026-07-28 · held 48 days · ±2x range
+
+  fees earned         +0.51%
+  impermanent loss    -3.20%
   ------------------------------
-  realized           -16.95% annualized   ← what you actually made
+  realized            -2.69%   (-20.4% annualized)
 ```
 
-In range the entire time. No liquidation, no exotic pair. The advertised number was not
-wrong about fees; it was structurally incapable of showing the loss.
+In range the entire time. No liquidation, no exotic pair. This endpoint does not return
+advertised APR (that is the pool/window call). The loss is IL, not missing fees.
 
-Those figures are live, so they move as the window slides. Reproduce them yourself:
+Those figures move as the window slides. Reproduce them yourself:
 
 ```bash
 curl "https://realized.drainfun.xyz/api/position/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640?entry=2026-07-28&range=2"

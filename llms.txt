@@ -94,10 +94,11 @@ liveness gates.
 
     node bin/mcp-server.js          # requires GRAPH_API_KEY
 
-Tools:
+Tools (7 — same list as bin/mcp-server.js):
 - find_pool(query)                      — resolve "WETH/USDC" to a poolId
 - realized_return(poolId, days, rangeWidthX)
 - position_realized(poolId, entryDate, rangeWidthX)  — the personal question
+- simulate_exit(poolId, entryDate, rangeWidthX, stakeUsd)  — close TODAY: same math as position_realized, in dollars on a stated stake. Gas/slippage are unavailable unless a verified source exists; never invented.
 - audit_pools(limit, days)              — corpus sweep + canary
 - explain_gap(poolId)                   — plain-language verdict with evidence
 - rank_pools(limit, top, rangeWidthX, excludeMisleading)
