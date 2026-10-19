@@ -16,12 +16,11 @@
  *   2. Cutoff sensitivity: how many positions get classified full-range at each candidate,
  *      and what is the worst IL error we accept by doing so.
  */
-import { readFileSync } from 'fs';
 import { concentratedIlPct } from '../packages/core/src/concentrated.js';
 import { impermanentLossPct as ilFull } from '../packages/core/src/realized.js';
 
-const key = process.env.GRAPH_API_KEY
-  || JSON.parse(readFileSync('/home/ubuntu/.config/cadence-secure/thegraph.json', 'utf8')).api_key;
+const key = (process.env.GRAPH_API_KEY || '').trim();
+if (!key) { console.error('Set GRAPH_API_KEY (The Graph gateway key). Keys are read from the environment only.'); process.exit(2); }
 const SUBGRAPH = '5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV';
 
 const r = await fetch(`https://gateway.thegraph.com/api/${key}/subgraphs/id/${SUBGRAPH}`, {

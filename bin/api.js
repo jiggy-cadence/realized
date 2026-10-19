@@ -35,11 +35,8 @@ import { walletV4 } from '../packages/core/src/v4.js';
 import { crossCheckPrice, exitGasCost } from '../packages/core/src/oneinch.js';
 
 // 1inch key is optional. Present -> position responses carry an independent price cross-check.
-// Absent -> the field says so honestly. Same on-disk pattern as the Graph key.
-let ONEINCH_KEY = process.env.ONEINCH_API_KEY || null;
-if (!ONEINCH_KEY) {
-  try { ONEINCH_KEY = JSON.parse(readFileSync('/home/ubuntu/.config/cadence-secure/1inch.json', 'utf8')).api_key; } catch { /* no key yet */ }
-}
+// Absent -> the field says so honestly. Read from the environment only (ONEINCH_API_KEY).
+const ONEINCH_KEY = (process.env.ONEINCH_API_KEY || '').trim() || null;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');

@@ -11,7 +11,7 @@
  *
  * Run: GRAPH_API_KEY=*** node scripts/build-pools.js
  */
-import { writeFileSync, mkdirSync, readFileSync } from 'fs';
+import { writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { scorePool, isLive, DEFAULT_LIVENESS, STABLES } from '../lib/realized.js';
@@ -20,7 +20,8 @@ import { VENUES } from '../lib/venues.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = `${__dirname}/../data/pools.json`;
 
-const key = process.env.GRAPH_API_KEY || readFileSync('/tmp/gk.txt', 'utf8').trim();
+const key = (process.env.GRAPH_API_KEY || '').trim();
+if (!key) { console.error('Set GRAPH_API_KEY (The Graph gateway key). Keys are read from the environment only.'); process.exit(2); }
 const gql = async (id, query) => {
   const r = await fetch(`https://gateway.thegraph.com/api/${key}/subgraphs/id/${id}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query }),

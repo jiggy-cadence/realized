@@ -1,8 +1,8 @@
 // Recon only: which non-Uniswap concentrated-liquidity subgraphs actually answer,
 // and do they carry the two fields the instrument needs (poolDayData + token0Price)?
-import { readFileSync } from 'fs';
 
-const KEY = process.env.GRAPH_API_KEY || readFileSync('/tmp/gk.txt', 'utf8').trim();
+const KEY = (process.env.GRAPH_API_KEY || '').trim();
+if (!KEY) { console.error('Set GRAPH_API_KEY (The Graph gateway key). Keys are read from the environment only.'); process.exit(2); }
 
 async function q(id, query) {
   try {

@@ -9,10 +9,9 @@
  *
  * Picking a cutoff by eye is how you get a parameter you later have to defend. Measure first.
  */
-import { readFileSync } from 'fs';
 
-const key = process.env.GRAPH_API_KEY
-  || JSON.parse(readFileSync('/home/ubuntu/.config/cadence-secure/thegraph.json', 'utf8')).api_key;
+const key = (process.env.GRAPH_API_KEY || '').trim();
+if (!key) { console.error('Set GRAPH_API_KEY (The Graph gateway key). Keys are read from the environment only.'); process.exit(2); }
 const SUBGRAPH = '5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV'; // uniswap-v3 mainnet
 
 const query = `{

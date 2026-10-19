@@ -214,6 +214,7 @@ out = {"gradedAt": now.isoformat(),
        "snapshots": sorted(set(g["snap"] for g in graded)),
        "n": len(graded), "accuracyByBand": {l: a for (l, _), a in zip(BANDS, accs)},
        "majorityBaseline": base, "instances": graded[:4000]}
-p = "/home/ubuntu/.openclaw/workspace/projects/ethonline2026-graph-agent/data/llama-grade-backdated.json"
+import pathlib
+p = pathlib.Path(__file__).resolve().parent.parent / "data" / "llama-grade-backdated.json"
 json.dump(out, open(p, "w"), indent=2)
 print(f"\n  wrote {p}")

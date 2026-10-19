@@ -31,18 +31,16 @@ import { gatewayUrl, query } from '../packages/core/src/realized.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const R = (p) => JSON.parse(readFileSync(`${__dirname}/../${p}`, 'utf8'));
 
-const key = (f, k = 'api_key') => {
-  try { return JSON.parse(readFileSync(`/home/ubuntu/.config/cadence-secure/${f}`, 'utf8'))[k]; } catch { return null; }
-};
-const GRAPH_KEY = process.env.GRAPH_API_KEY || key('thegraph.json');
-const ONEINCH_KEY = process.env.ONEINCH_API_KEY || key('1inch.json');
+// Keys come from the environment only.
+const GRAPH_KEY = (process.env.GRAPH_API_KEY || '').trim() || null;
+const ONEINCH_KEY = (process.env.ONEINCH_API_KEY || '').trim() || null;
 
 const CHAIN_IDS = { mainnet: 1, arbitrum: 42161, polygon: 137, base: 8453 };
 const AGREE_THRESHOLD_PCT = 2;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 if (!ONEINCH_KEY) {
-  console.error('No 1inch key (ONEINCH_API_KEY or ~/.config/cadence-secure/1inch.json).');
+  console.error('No 1inch key: set ONEINCH_API_KEY.');
   console.error('Refusing to write data/pricecheck.json — a stale audit must not look fresh.');
   process.exit(1);
 }

@@ -8,9 +8,9 @@
 //   Q2 Does concentratedIlPct diverge from the v2 formula once price exits the band?
 //   Q3 Does w -> infinity converge back to v2 (the sanity check)?
 import { positionValue, hodlValue, concentratedIlPct, outOfRange } from
-  '/home/ubuntu/.openclaw/workspace/projects/ethonline2026-graph-agent/packages/core/src/concentrated.js';
+  '../packages/core/src/concentrated.js';
 import { impermanentLossPct } from
-  '/home/ubuntu/.openclaw/workspace/projects/ethonline2026-graph-agent/packages/core/src/realized.js';
+  '../packages/core/src/realized.js';
 
 const w = 2; // +/-2x band
 console.log('=== Q1: does the position VALUE clamp outside the band? ===');

@@ -4,10 +4,10 @@
 //   else                             -> 'gap-prone'
 // All on ANNUALIZED values, which is what the real one compares. My first attempt compared
 // window percentages and returned null for everything -- a broken instrument, not a finding.
-import { gatewayUrl, fetchTopPools, impermanentLossPct } from '/home/ubuntu/.openclaw/workspace/projects/ethonline2026-graph-agent/lib/realized.js';
-import { venueList, subgraphId } from '/home/ubuntu/.openclaw/workspace/projects/ethonline2026-graph-agent/lib/venues.js';
-import { readFileSync as _rf } from "fs";
-const KEY = JSON.parse(_rf("/home/ubuntu/.config/cadence-secure/thegraph.json","utf8")).api_key;
+import { gatewayUrl, fetchTopPools, impermanentLossPct } from '../lib/realized.js';
+import { venueList, subgraphId } from '../lib/venues.js';
+const KEY = (process.env.GRAPH_API_KEY || '').trim();
+if (!KEY) { console.error('Set GRAPH_API_KEY (The Graph gateway key). Keys are read from the environment only.'); process.exit(2); }
 const SPAN = 21, HISTORY = 210, STEP = 21;
 
 function label(days) {

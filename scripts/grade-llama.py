@@ -124,7 +124,8 @@ out = {"snapshotAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
        "source": "https://yields.llama.fi/pools",
        "note": "DefiLlama publishes no prediction archive. This snapshot is the t0 needed to grade them forward.",
        "count": len(snap), "predictions": snap}
-path = "/home/ubuntu/.openclaw/workspace/projects/ethonline2026-graph-agent/data/llama-predictions-t0.json"
+import pathlib
+path = pathlib.Path(__file__).resolve().parent.parent / "data" / "llama-predictions-t0.json"
 with open(path, "w") as f: json.dump(out, f, indent=2)
 print(f"  snapshotted {len(snap)} live predictions -> data/llama-predictions-t0.json")
 from collections import Counter
