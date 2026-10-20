@@ -224,15 +224,28 @@ console.log('--- prose vs instrument: the numbers must be recomputed, not rememb
 
 // ---------------------------------------------------------------------------
 // 7. FRESHNESS. The failure Grok caught: a live-measurement claim on a 45-hour-old corpus.
-//    Warns rather than fails — staleness is an ops problem, not a wrong number.
+//    A corpus under 48h old may be called live. An older one passes ONLY if the README names it
+//    as a dated snapshot: "Corpus built YYYY-MM-DD" matching generatedAt (UTC) of BOTH artifacts,
+//    and the Findings heading no longer says "live". Otherwise: rebuild, or label it.
 // ---------------------------------------------------------------------------
 {
   const gen = json('api/pools.json').generatedAt;
+  const genC = json('data/corpus.json').generatedAt;
   const ageH = (Date.now() - new Date(gen).getTime()) / 3.6e6;
   if (!isFinite(ageH)) fail('freshness: generatedAt parseable', String(gen));
-  else if (ageH > 48) fail('freshness: served corpus is older than 48h', `${ageH.toFixed(1)}h old (${gen}) — rebuild: node scripts/build-pools.js`);
-  else if (ageH > 24) { console.log(`WARN  freshness: corpus is ${ageH.toFixed(1)}h old — consider rebuilding before submission`); pass('freshness: under the 48h hard bound'); }
-  else pass('freshness: corpus is current', `${ageH.toFixed(1)}h old`);
+  else if (ageH <= 24) pass('freshness: corpus is current', `${ageH.toFixed(1)}h old`);
+  else if (ageH <= 48) { console.log(`WARN  freshness: corpus is ${ageH.toFixed(1)}h old — consider rebuilding before submission`); pass('freshness: under the 48h hard bound'); }
+  else {
+    const readme = read('README.md');
+    const days = [...new Set([gen, genC].map((g) => new Date(g).toISOString().slice(0, 10)))];
+    const missing = days.filter((d) => !readme.includes(`Corpus built ${d}`));
+    const liveHeading = /^##\s*Findings[^\n]*\blive\b/im.test(readme);
+    if (missing.length || liveHeading)
+      fail('freshness: corpus older than 48h must be labelled as a dated snapshot',
+        `${ageH.toFixed(1)}h old (${gen}); README needs "Corpus built ${missing.join(', ') || days[0]}"` +
+        `${liveHeading ? ' and a Findings heading without "live"' : ''} — or rebuild: node scripts/build-pools.js`);
+    else pass('freshness: stale corpus is labelled as a dated snapshot', `${ageH.toFixed(1)}h old, "Corpus built ${days.join(', ')}"`);
+  }
 }
 
 // ---------------------------------------------------------------------------

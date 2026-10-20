@@ -301,7 +301,13 @@ already computed and consistent across every pool we measure. An earlier version
 said "there is no RPC path," which was too strong — corrected here for the same reason the rest
 of this project exists.
 
-## Findings (live, reproducible)
+## Findings (dated snapshot, reproducible)
+
+**Corpus built 2026-09-12 (UTC).** Every number in this section comes from
+[`data/corpus.json`](data/corpus.json) (`generatedAt` 2026-09-12T03:22:41Z) and
+[`api/pools.json`](api/pools.json) (03:19:06Z). They were live data when built, not now: pool
+counts, rates and medians will drift as the market moves. `test/docs.test.js` fails if this
+label is removed while the corpus is older than 48 hours.
 
 Regenerate everything with `GRAPH_API_KEY=... node scripts/build-corpus.js` →
 [`data/corpus.json`](data/corpus.json). Diff it against the subgraph yourself.
