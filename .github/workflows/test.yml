@@ -1,0 +1,19 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - name: npm test (offline canary + prose-vs-instrument checks)
+        run: |
+          npm test 2>&1 | tee test.log
+          echo "PASS lines: $(grep -c '^PASS' test.log)  FAIL lines: $(grep -c '^FAIL' test.log || true)"
+          ! grep -q '^FAIL' test.log
