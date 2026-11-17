@@ -43,6 +43,25 @@ export function concentratedIlPct(r, w) {
   return (positionValue(r, w) / hodlValue(r, w) - 1) * 100;
 }
 
+/**
+ * Fee income restated on the SAME basis as IL. IL is a fraction of HODL value at exit
+ * (V_lp/V_hodl - 1), but feesUSD/entryTvl is a fraction of ENTRY value. Adding the two
+ * directly mixes denominators. LP-vs-HODL is (V_lp + F)/V_hodl - 1 = IL + F/V_hodl, so
+ * the fee term is rescaled by V_entry/V_hodl(r). Full range: 2/(1+r). Found 2026-11-17
+ * by the review panel; error was largest exactly where IL is (big moves).
+ */
+export function feeVsHodlPct(feeReturnPct, r, w = 1e8) {
+  if (!(r > 0) || !(w > 1)) return null;
+  // w >= 1e6 is treated as full range elsewhere (v2 formula), so use v2's exact HODL ratio.
+  return feeReturnPct * (w >= 1e6 ? 2 / (1 + r) : hodlValue(1, w) / hodlValue(r, w));
+}
+
+/** LP-vs-HODL realized return, both terms on the HODL-at-exit basis. */
+export function realizedVsHodlPct(feeReturnPct, ilPct, r, w = 1e8) {
+  const f = feeVsHodlPct(feeReturnPct, r, w);
+  return f === null || ilPct === null ? null : f + ilPct;
+}
+
 /** Did price leave the band? Then the loss is realized, not impermanent. */
 export function outOfRange(r, w) {
   return r <= 1 / w || r >= w;

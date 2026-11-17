@@ -4,7 +4,8 @@
  * Advertised LP APR is fees-only and annualized. It has no price term, so it is
  * POSITIVE BY CONSTRUCTION: a pool cannot advertise a loss. That is the defect.
  *
- * Realized return = fee income + impermanent loss (IL is <= 0 always).
+ * Realized return = LP value vs HODL at exit = fee income + impermanent loss (IL <= 0),
+ * with fees restated on the HODL basis IL uses (see feeVsHodlPct in concentrated.js).
  * Both terms come from The Graph's historical poolDayData -- per-day feesUSD and
  * token0Price at each day's close.
  *
@@ -26,7 +27,7 @@
  * label outruns what was actually checked.
  */
 
-import { concentratedIlPct, outOfRange, RANGES } from './concentrated.js';
+import { concentratedIlPct, outOfRange, RANGES, realizedVsHodlPct } from './concentrated.js';
 
 const UNISWAP_V3_MAINNET = '5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV';
 
@@ -271,7 +272,7 @@ export function positionRealized(pool, rangeWidthX = 2) {
     : concentratedIlPct(ratio, rangeWidthX);
   if (il === null) return { measurable: false, reason: `IL unmeasurable at ratio ${ratio.toExponential(2)}` };
 
-  const realizedPct = feeReturnPct + il;
+  const realizedPct = realizedVsHodlPct(feeReturnPct, il, ratio, rangeWidthX);
   const n = days.length;
   const realizedAprPct = (realizedPct / n) * 365;
   const out = rangeWidthX < 1e6 && outOfRange(ratio, rangeWidthX);
@@ -292,7 +293,7 @@ export function positionRealized(pool, rangeWidthX = 2) {
     realizedAprPct,
     outOfRange: out,
     outOfRangeNote: out ? 'Price left this range during the position -- the loss below is REALIZED, not impermanent. Rebalancing would have required active management this instrument does not model.' : null,
-    dailySeries: dailyRealizedSeriesFromAscending(days, pEntry),
+    dailySeries: dailyRealizedSeriesFromAscending(days, pEntry, rangeWidthX),
   };
 }
 
@@ -301,7 +302,7 @@ export function positionRealized(pool, rangeWidthX = 2) {
  * separate rather than reusing dailyRealizedSeries+reverse to avoid a silent
  * off-by-one if someone "simplifies" this back to one shared helper later
  * without checking which order it expects. */
-function dailyRealizedSeriesFromAscending(chrono, pEntry) {
+function dailyRealizedSeriesFromAscending(chrono, pEntry, w = 1e8) {
   if (!chrono?.length || !(pEntry > 0)) return null;
   const entryTvl = Number(chrono[0]?.tvlUSD || 0);
   if (entryTvl <= 0) return null;
@@ -313,9 +314,10 @@ function dailyRealizedSeriesFromAscending(chrono, pEntry) {
     const p = Number(d.token0Price || 0);
     if (p <= 0) { points.push({ date, realizedReturnPct: null }); continue; }
     const ratio = p / pEntry;
-    const il = ratio > 0 ? impermanentLossPct(ratio) : null;
-    if (il === null) { points.push({ date, realizedReturnPct: null }); continue; }
-    points.push({ date, realizedReturnPct: Number(((cumFeesUsd / entryTvl) * 100 + il).toFixed(3)) });
+    const il = w >= 1e6 ? impermanentLossPct(ratio) : concentratedIlPct(ratio, w);
+    const rz = realizedVsHodlPct((cumFeesUsd / entryTvl) * 100, il, ratio, w);
+    if (rz === null) { points.push({ date, realizedReturnPct: null }); continue; }
+    points.push({ date, realizedReturnPct: Number(rz.toFixed(3)) });
   }
   return points;
 }
@@ -355,7 +357,7 @@ export function scorePool(pool) {
   const totalFeesUsd = days.reduce((s, d) => s + Number(d.feesUSD || 0), 0);
   const feeReturnPct = (totalFeesUsd / entryTvl) * 100;
   const ilPct = impermanentLossPct(ratio);
-  const realizedPct = feeReturnPct + ilPct;
+  const realizedPct = realizedVsHodlPct(feeReturnPct, ilPct, ratio);
 
   // What a DEX UI shows: most recent day's fees, annualized on current TVL.
   const advertisedApr = (Number(exit.feesUSD || 0) / nowTvl) * 365 * 100;
@@ -427,7 +429,7 @@ function dailyRealizedSeries(daysDesc, pEntry) {
     const il = ratio > 0 ? impermanentLossPct(ratio) : null;
     if (il === null) { points.push({ date, realizedReturnPct: null }); continue; }
     const feePct = (cumFeesUsd / entryTvl) * 100;
-    points.push({ date, realizedReturnPct: Number((feePct + il).toFixed(3)) });
+    points.push({ date, realizedReturnPct: Number(realizedVsHodlPct(feePct, il, ratio).toFixed(3)) });
   }
   return points;
 }
@@ -443,7 +445,7 @@ export function byRange(ratio, feeReturnPct, windowDays, advertisedApr) {
   for (const { label, w } of RANGES) {
     const il = concentratedIlPct(ratio, w);
     if (il === null) { out[label] = { measurable: false }; continue; }
-    const realizedPct = feeReturnPct + il;
+    const realizedPct = realizedVsHodlPct(feeReturnPct, il, ratio, w);
     const realizedApr = (realizedPct / windowDays) * 365;
     out[label] = {
       measurable: true,

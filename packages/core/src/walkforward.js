@@ -18,7 +18,7 @@
  */
 
 import { impermanentLossPct, STABLES } from './realized.js';
-import { concentratedIlPct, outOfRange } from './concentrated.js';
+import { concentratedIlPct, outOfRange, realizedVsHodlPct } from './concentrated.js';
 
 /**
  * Score one 30-day window out of a longer poolDayData series.
@@ -44,7 +44,7 @@ export function scoreWindow(pool, days, offset, len = 30) {
   const totalFeesUsd = slice.reduce((s, d) => s + Number(d.feesUSD || 0), 0);
   const feeReturnPct = (totalFeesUsd / entryTvl) * 100;
   const ilPct = impermanentLossPct(ratio);
-  const realizedPct = feeReturnPct + ilPct;
+  const realizedPct = realizedVsHodlPct(feeReturnPct, ilPct, ratio);
 
   const advertisedApr = (Number(exit.feesUSD || 0) / nowTvl) * 365 * 100;
   const realizedApr = (realizedPct / slice.length) * 365;
@@ -98,7 +98,7 @@ export function summarizeWindow(scored, gate, rangeWidthX) {
 
   const withRange = live.map((s) => {
     const il = rangeWidthX ? concentratedIlPct(s.priceRatio, rangeWidthX) : s.impermanentLossPct;
-    const rz = s.feeReturnPct + il;
+    const rz = realizedVsHodlPct(s.feeReturnPct, il, s.priceRatio, rangeWidthX || 1e8);
     return { ...s, ilUsed: il, realizedUsed: rz, realizedAprUsed: (rz / s.windowDays) * 365,
       leftBand: rangeWidthX ? outOfRange(s.priceRatio, rangeWidthX) : false };
   });

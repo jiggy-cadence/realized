@@ -10,7 +10,7 @@
  * Run with live data too:  GRAPH_API_KEY=xxx node test/canary.test.js --live
  */
 import { impermanentLossPct, scorePool, summarize, gatewayUrl, fetchTopPools, fetchPoolFrom, positionRealized, priceCollapsed, isLive, pearson, spearman } from '../lib/realized.js';
-import { concentratedIlPct, outOfRange } from '../lib/concentrated.js';
+import { concentratedIlPct, outOfRange, feeVsHodlPct, realizedVsHodlPct } from '../lib/concentrated.js';
 import { tickToPrice, tickRangeToWidth, describePosition, fetchWalletPositions, EFFECTIVELY_FULL_RANGE_SPAN, TICK_MIN, TICK_MAX } from '../packages/core/src/wallet.js';
 
 let failed = 0;
@@ -136,13 +136,21 @@ console.log('\n--- positionRealized: hand-verified against a fabricated position
   const posVal = (r >= 1 / w && r <= w) ? 2 * Math.sqrt(r) - sa - r / sb : (r < 1 / w ? (1 / sa - 1 / sb) * r : sb - sa);
   const hodl = (1 - sa) + (1 - 1 / sb) * r;
   const handIl = (posVal / hodl - 1) * 100;
-  const handFees = (50 / 1_000_000) * 100; // $50 fees / $1M entry TVL, as a %
-  const handRealized = handFees + handIl;
+  // Fees restated on IL's basis (HODL value at exit), not entry value: (V_lp + F)/V_hodl - 1.
+  const hodl1 = (1 - sa) + (1 - 1 / sb);
+  const handRealized = ((posVal + (50 / 1_000_000) * hodl1) / hodl - 1) * 100;
   check('positionRealized is measurable', pos.measurable ? 1 : 0, 1, 0);
   check('positionRealized.impermanentLossPct matches independent hand calc', pos.impermanentLossPct, handIl, 1e-6);
   check('positionRealized.realizedReturnPct matches independent hand calc', pos.realizedReturnPct, handRealized, 1e-6);
   check('positionRealized.daysHeld', pos.daysHeld, 10, 0);
   check('positionRealized.entryDate is the FIRST day (ascending), not the last', pos.entryDate !== pos.latestDate ? 0 : 1, 0, 0);
+}
+{
+  // Basis canary (review panel, 2026-11-17): fees/entryTvl and IL have different denominators.
+  // Full range, r=4, fees = 10% of entry. Value per $1 entry: HODL 2.5, LP 2, fees 0.1.
+  // LP-vs-HODL = (2 + 0.1)/2.5 - 1 = -16%. Adding raw percentages (10 + -20) says -10%.
+  check('realized vs HODL uses one basis (r=4, 10% fees, full range)', realizedVsHodlPct(10, impermanentLossPct(4), 4), -16, 1e-9);
+  check('fee rescale is 1 at r=1', feeVsHodlPct(7, 1), 7, 1e-6);
 }
 {
   // Fewer than 2 days: must refuse, not fabricate a number from one data point.

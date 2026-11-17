@@ -29,7 +29,7 @@
 
 // -- Pure math (no network, no key) -------------------------------------------------------
 export { impermanentLossPct, positionRealized, byRange, scorePool } from './realized.js';
-export { positionValue, hodlValue, concentratedIlPct, outOfRange, RANGES } from './concentrated.js';
+export { positionValue, hodlValue, concentratedIlPct, outOfRange, RANGES, feeVsHodlPct, realizedVsHodlPct } from './concentrated.js';
 
 // -- The Graph access ---------------------------------------------------------------------
 export { gatewayUrl, query, fetchPool, fetchPoolFrom, fetchTopPools } from './realized.js';

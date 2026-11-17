@@ -326,6 +326,15 @@ case for the pool** — so we report every range, and the finding has to survive
 | wide ±4x | −0.27% | +0.02% | 0/102 | **45%** |
 | full-range (v2-equivalent) | −0.13% | +0.06% | 0/102 | **34%** |
 
+> **Math correction, 2026-11-17.** Earlier versions added `fees / entry TVL` to IL, but IL is a
+> fraction of HODL value at exit, so the two terms had different denominators. Realized return is
+> now LP-vs-HODL on one basis: `(V_lp + fees) / V_hodl − 1` (`realizedVsHodlPct` in
+> [`concentrated.js`](packages/core/src/concentrated.js); canary in `test/canary.test.js`).
+> Re-scoring the stored 2026-09-12 corpus (`data/corpus.json`, 102 live pools) moves the
+> misleading share by at most one pool per range (tight 60.8→60.8%, moderate 53.9→54.9%,
+> wide 43.1→44.1%, full 37.3→36.3%). Medians move ≤0.01 pt. The table below has not been
+> regenerated yet, and the conclusion holds at every range.
+
 Every row is the same 102 live volatile pools over the same 30-day window. Only the assumed
 LP range changes. The direction never flips: **the tighter and more realistic your position,
 the more the advertised number lies to you.**
