@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * spike-hunt4.js — does the selection edge survive WALK-FORWARD?
+ * spike-hunt8.js (walk-forward, continued from spike-hunt4.js) — does the selection edge survive WALK-FORWARD?
  *
  * spike-hunt3 found: score pools on days 1-15, hold the top quintile through
  * days 16-30, and you beat the median pool by +1.638pp with p=0.0000 against
@@ -19,11 +19,17 @@
  *     (c) pooled random-selection control p < 0.05
  *   A big mean with a negative median = one lucky window carrying it. That FAILS.
  *
- * Windows STEP by 15 days so formation/holdout pairs never overlap each other's
- * holdout. They are not fully independent (adjacent windows share market regime)
- * and that caveat ships with the number rather than being hidden.
+ * Windows STEP by 7 days (v6 on; spike-hunt4 stepped by 15) against a 15-day holdout, so
+ * consecutive holdouts OVERLAP by 8 days and share data. Windows are therefore not
+ * independent, on top of adjacent windows sharing market regime. Criterion (c) is the
+ * MEAN of the per-window random-control p-values: a summary, not a valid pooled p-value,
+ * and with overlapping windows no independence-based combination (Fisher etc.) is valid
+ * either. Read (c) as "the pick typically beats random draws", not as a significance level.
  *
- * Run: GRAPH_API_KEY=*** node scripts/spike-hunt4.js
+ * data/spike-hunt8.json was generated before the 2026-11-17 PRNG and p-value fixes below
+ * and has not been regenerated (needs a paid Graph key).
+ *
+ * Run: GRAPH_API_KEY=*** node scripts/spike-hunt8.js
  */
 import { writeFileSync } from 'fs';
 import { gatewayUrl, fetchTopPools, impermanentLossPct } from '../lib/realized.js';
@@ -48,7 +54,11 @@ const median = (xs) => {
 };
 
 let seed = 20260910;
-const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+// Math.imul keeps the multiply in 32-bit integers. The plain `seed * 1103515245` exceeds
+// 2^53 and drops low bits before the mask, so it was not the LCG it looked like. Dividing
+// by 2^31 keeps the result in [0, 1), so Math.floor(rnd() * n) can never index past the end.
+const lcgNext = (s) => (Math.imul(s, 1103515245) + 12345) & 0x7fffffff;
+const rnd = () => { seed = lcgNext(seed); return seed / 0x80000000; };
 
 function spanReturn(days) {
   if (days.length < 2) return null;
@@ -213,7 +223,8 @@ async function main() {
         const t = v.slice(1, -1);
         return Number((t.reduce((a, b) => a + b, 0) / t.length).toFixed(3));
       })(),
-      randomP: Number((better / draws).toFixed(4)),
+      // +1 in both terms: a Monte Carlo p-value can never be exactly 0 from finite draws.
+      randomP: Number(((better + 1) / (draws + 1)).toFixed(4)),
     });
     }
   }
@@ -225,7 +236,8 @@ async function main() {
   const meanEdge = mean(edges);
   const positive = edges.filter((e) => e > 0).length;
   const positivePct = (positive / edges.length) * 100;
-  // Pooled control: fraction of windows where random matched/beat the pick.
+  // Mean of the per-window random-control p-values. NOT a valid pooled p-value (see header);
+  // the name and the output key are kept so stored results stay comparable.
   const pooledP = mean(windows.map((w) => w.randomP));
 
   const passed = medEdge >= PASS.minMedianEdgePp
@@ -237,7 +249,7 @@ async function main() {
   console.log(`  median edge:        ${medEdge >= 0 ? '+' : ''}${medEdge.toFixed(3)}pp   (bar: >= +${PASS.minMedianEdgePp})`);
   console.log(`  mean edge:          ${meanEdge >= 0 ? '+' : ''}${meanEdge.toFixed(3)}pp`);
   console.log(`  positive windows:   ${positive}/${edges.length} (${positivePct.toFixed(0)}%)   (bar: >= ${PASS.minPositiveWindowsPct}%)`);
-  console.log(`  pooled random p:    ${pooledP.toFixed(4)}   (bar: < ${PASS.maxP})`);
+  console.log(`  mean per-window p:  ${pooledP.toFixed(4)}   (bar: < ${PASS.maxP})`);
   console.log(`  => ${passed ? 'SIGNAL SURVIVES WALK-FORWARD' : 'FAILS WALK-FORWARD — single-window result was not repeatable'}\n`);
 
   // v6: per-venue breakdown -- Jiggy's question, "is there a pattern BETWEEN chains".
@@ -257,7 +269,7 @@ async function main() {
 
   writeFileSync(new URL('../data/spike-hunt8.json', import.meta.url), JSON.stringify({
     generatedAt: new Date().toISOString(),
-    method: `walk-forward: score on ${FORMATION}d formation, measure ${HOLDOUT}d holdout, step ${STEP}d, one round trip charged. Scoring function identical to spike-hunt3, deliberately not retuned.`,
+    method: `walk-forward: score on ${FORMATION}d formation, measure ${HOLDOUT}d holdout, step ${STEP}d, one round trip charged. Scoring function is spike-hunt3's persistence + weekday terms with the fee term scaled by formation-period price stability (added after spike-hunt3). Holdouts overlap (step ${STEP}d < holdout ${HOLDOUT}d).`,
     caveat: 'Adjacent windows share market regime, so windows are not fully independent.',
     preRegistered: PASS, costModel: COST,
     windowsTested: windows.length,
@@ -266,6 +278,7 @@ async function main() {
     positiveWindows: positive,
     positiveWindowsPct: Number(positivePct.toFixed(1)),
     pooledRandomP: Number(pooledP.toFixed(4)),
+    pooledRandomPNote: 'mean of per-window Monte Carlo p-values ((better+1)/(draws+1)); a summary, not a valid pooled p-value',
     verdict: passed ? 'SIGNAL' : 'FAILS',
     windows,
   }, null, 2));

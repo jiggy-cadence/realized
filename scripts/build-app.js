@@ -22,6 +22,9 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const R = (p) => JSON.parse(readFileSync(`${__dirname}/../${p}`, 'utf8'));
+// Token symbols come from the subgraph, i.e. from whoever deployed the token. They are
+// escaped everywhere they reach HTML, at build time (escH) and in the page script (escH there).
+const escH = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 const pools = R('data/pools.json');
 const hist = R('data/history.json');
@@ -446,7 +449,7 @@ td[class^="trust-"]{font-size:11.5px}
 
 ${shock ? `
 <div class="shock">
-  <div class="shock-label">Live · ${shock.pair} · ${shock.fee}% · largest pool on Uniswap v3 · last ${shock.days} days</div>
+  <div class="shock-label">Live · ${escH(shock.pair)} · ${shock.fee}% · largest pool on Uniswap v3 · last ${shock.days} days</div>
   <h1>They advertised <span class="up">+${shock.adv.toFixed(2)}% APR</span>.<br>LPs actually lost <span class="down">$${Math.abs(shock.lossUsd).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span> on every $100k.</h1>
   <div class="shock-money">
     <div class="money-col">
@@ -556,7 +559,7 @@ advertised number was <em>predictive</em>, which is a different question from wh
     <h3>Top earners</h3>
     <table><thead><tr><th>pool</th><th>realized</th><th>advertised</th></tr></thead><tbody>
       ${leaderboard.topEarners.slice(0, 8).map((r) => `<tr>
-        <td>${r.pair}</td>
+        <td>${escH(r.pair)}</td>
         <td><strong>${r.realizedAprPct >= 0 ? '+' : ''}${r.realizedAprPct.toFixed(1)}%</strong></td>
         <td>${r.advertisedAprPct.toFixed(1)}%</td>
       </tr>`).join('')}
@@ -566,7 +569,7 @@ advertised number was <em>predictive</em>, which is a different question from wh
     <h3>Worst losers</h3>
     <table><thead><tr><th>pool</th><th>realized</th><th>advertised</th></tr></thead><tbody>
       ${(leaderboard.worstLosers || []).slice(0, 8).map((r) => `<tr>
-        <td>${r.pair}</td>
+        <td>${escH(r.pair)}</td>
         <td><strong>${r.realizedAprPct.toFixed(1)}%</strong></td>
         <td>+${r.advertisedAprPct.toFixed(1)}%</td>
       </tr>`).join('')}
@@ -587,7 +590,7 @@ generated ${new Date(leaderboard.generatedAt).toISOString().slice(0, 16).replace
     <h3>Most honest</h3>
     <table><thead><tr><th>pool</th><th>advertised</th><th>realized</th><th>gap</th></tr></thead><tbody>
       ${leaderboard.mostHonest.slice(0, 8).map((r) => `<tr>
-        <td>${r.pair}</td>
+        <td>${escH(r.pair)}</td>
         <td>${r.advertisedAprPct.toFixed(1)}%</td>
         <td>${r.realizedAprPct.toFixed(1)}%</td>
         <td>${r.gapPts >= 0 ? '+' : ''}${r.gapPts.toFixed(2)}pt</td>
@@ -598,7 +601,7 @@ generated ${new Date(leaderboard.generatedAt).toISOString().slice(0, 16).replace
     <h3>Most misleading</h3>
     <table><thead><tr><th>pool</th><th>advertised</th><th>realized</th><th>gap</th></tr></thead><tbody>
       ${leaderboard.mostMisleading.slice(0, 8).map((r) => `<tr>
-        <td>${r.pair}</td>
+        <td>${escH(r.pair)}</td>
         <td>+${r.advertisedAprPct.toFixed(1)}%</td>
         <td>${r.realizedAprPct.toFixed(1)}%</td>
         <td>+${r.gapPts.toFixed(2)}pt</td>
@@ -648,7 +651,7 @@ ${(() => {
     const shown = Math.max(wr, WINDOW_FLOOR);
     const capped = wr < WINDOW_FLOOR;
     return `<tr>
-    <td>${p.pair}</td>
+    <td>${escH(p.pair)}</td>
     <td class="hide-s">$${(p.tvl / 1e6).toFixed(1)}M</td>
     <td>${p.adv >= 0 ? '+' : ''}${((p.adv / 365) * p.days).toFixed(2)}%</td>
     <td><strong class="${shown < 0 ? 'bad' : 'ok'}">${shown >= 0 ? '+' : ''}${shown.toFixed(1)}%${capped ? '<span title="floored: an LP cannot lose more than the stake">*</span>' : ''}</strong></td>
@@ -747,7 +750,7 @@ ${pricecheck && pricecheck.counts.compared > 0 ? `
   </div>
   <p class="sub" style="margin-top:16px">And the tail, published on purpose — a good median hiding a
   burning tail is the self-flattery this project exists to catch. The two real disagreements are
-  ${pricecheck.worstDivergences.slice(0, 2).map((w) => `<strong>${w.pair}</strong> (${w.divergencePct.toFixed(1)}%)`).join(' and ')}:
+  ${pricecheck.worstDivergences.slice(0, 2).map((w) => `<strong>${escH(w.pair)}</strong> (${w.divergencePct.toFixed(1)}%)`).join(' and ')}:
   a dead stablecoin and a thin gold-pair route, where the subgraph still carries a price 1inch
   correctly refuses to honour. That is a stale-price detector, not a broken instrument — and we'd
   rather show you the two than quietly average them away.</p>
@@ -897,7 +900,8 @@ data ${pools.generatedAt.slice(0, 16).replace('T', ' ')} UTC · source: The Grap
 </div>
 
 <script>
-const DATA = ${JSON.stringify(pools.pools)};
+function escH(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+const DATA = ${JSON.stringify(pools.pools).replace(/</g, '\\u003c')};
 const RANGES = ${JSON.stringify(RANGES)};
 
 function il(r, w){
@@ -970,7 +974,7 @@ function renderDD(term){
 
 function paintDD(isLive){
   ddEl.innerHTML = current.map((p,i)=>\`<div class="opt" data-i="\${i}">
-    <div><div class="p">\${p.pair}\${isLive?' <span style="color:var(--acc);font-size:10px;font-weight:700">LIVE</span>':''}</div><div class="venue">\${p.dex} · \${p.chain} · \${p.fee}% fee</div></div>
+    <div><div class="p">\${escH(p.pair)}\${isLive?' <span style="color:var(--acc);font-size:10px;font-weight:700">LIVE</span>':''}</div><div class="venue">\${p.dex} · \${p.chain} · \${p.fee}% fee</div></div>
     <div class="meta">$\${(p.tvl/1e6).toFixed(1)}M TVL\${p.adv!==undefined?'<br>'+f(p.adv)+' advertised':''}</div></div>\`).join('');
   ddEl.classList.add('open');
 }
@@ -1182,13 +1186,13 @@ function showCard(p){
   card.style.display='block';
   const backBtn = '<button class="backbtn" id="back">← all pools</button>';
   if(p.loading){
-    card.innerHTML = \`<div class="hero"><div class="hero-top"><div><div class="hero-pair">\${p.pair}</div>
+    card.innerHTML = \`<div class="hero"><div class="hero-top"><div><div class="hero-pair">\${escH(p.pair)}</div>
       <div class="hero-tags">Fetching live from The Graph…</div></div>\${backBtn}</div></div>\`;
     document.getElementById('back').onclick=()=>{ qEl.value=''; clrEl.style.display='none'; showCard(null); selected=null; };
     return;
   }
   if(p.unmeasurable){
-    card.innerHTML = \`<div class="hero"><div class="hero-top"><div><div class="hero-pair">\${p.pair}</div>
+    card.innerHTML = \`<div class="hero"><div class="hero-top"><div><div class="hero-pair">\${escH(p.pair)}</div>
       <div class="hero-tags">Couldn't measure this pool: \${(p.reason||'unknown reason').toString().replace(/</g,'')}</div></div>\${backBtn}</div>
       <div class="callout warn">Not enough historical <code>poolDayData</code> to price this window — shown as unmeasurable, not as zero.</div></div>\`;
     document.getElementById('back').onclick=()=>{ qEl.value=''; clrEl.style.display='none'; showCard(null); selected=null; };
@@ -1196,7 +1200,7 @@ function showCard(p){
   }
   card.innerHTML = \`<div class="hero">
     <div class="hero-top">
-      <div><div class="hero-pair">\${p.pair}</div><div class="hero-tags">\${p.dex} · \${p.chain} · \${p.fee}% fee tier · $\${(p.tvl/1e6).toFixed(1)}M TVL</div></div>
+      <div><div class="hero-pair">\${escH(p.pair)}</div><div class="hero-tags">\${p.dex} · \${p.chain} · \${p.fee}% fee tier · $\${(p.tvl/1e6).toFixed(1)}M TVL</div></div>
       \${backBtn}
     </div>
     <div class="rangepick" id="rp"></div>
@@ -1244,8 +1248,8 @@ let sortKey='tvl', sortDir=-1;
 function renderTable(){
   const rows = DATA.map(p=>({...p, ...compute(p, 2)})); // table always shows "typical" ±2x for comparability
   rows.sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; return (typeof x==='string')?sortDir*x.localeCompare(y):sortDir*(x-y);});
-  document.getElementById('tb').innerHTML = rows.slice(0,100).map(p=>\`<tr data-pair="\${p.pair}" data-id="\${p.id}">
-    <td>\${p.pair}<div style="color:#5a6572;font-size:11px;font-weight:400">\${p.dex} · \${p.chain}</div></td>
+  document.getElementById('tb').innerHTML = rows.slice(0,100).map(p=>\`<tr data-pair="\${escH(p.pair)}" data-id="\${p.id}">
+    <td>\${escH(p.pair)}<div style="color:#5a6572;font-size:11px;font-weight:400">\${p.dex} · \${p.chain}</div></td>
     <td>$\${(p.tvl/1e6).toFixed(1)}M</td>
     <td>\${f(p.adv)}</td>
     <td class="hide-s \${p.realApr<0?'bad':'ok'}">\${f(p.realApr)}</td>

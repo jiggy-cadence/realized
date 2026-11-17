@@ -13,7 +13,10 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci
       - name: npm test (offline canary + prose-vs-instrument checks)
+        # pipefail: without it the step's status is tee's, and a crashed test run
+        # that printed no FAIL line would pass.
         run: |
+          set -o pipefail
           npm test 2>&1 | tee test.log
           echo "PASS lines: $(grep -c '^PASS' test.log)  FAIL lines: $(grep -c '^FAIL' test.log || true)"
           ! grep -q '^FAIL' test.log

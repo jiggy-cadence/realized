@@ -46,7 +46,13 @@ function il(r, w) {                      // w = range half-width: 1.25 tight, 2 
   else pos = 2 * Math.sqrt(r) - sa - r / sb;
   return ((pos / ((1 - sa) + (1 - 1 / sb) * r)) - 1) * 100;
 }
-const realizedPct = pool.fees + il(pool.r, 2);         // window take-home; quote THIS
+function hodl(r, w) {                    // HODL value of the same position at price ratio r
+  return (1 - Math.sqrt(1 / w)) + (1 - 1 / Math.sqrt(w)) * r;
+}
+// pool.fees is fees / ENTRY value; IL is vs HODL value at exit. Put fees on the HODL basis
+// before adding (README "Math correction, 2026-11-17"); do NOT use pool.fees + il(...).
+const w = 2;
+const realizedPct = pool.fees * hodl(1, w) / hodl(pool.r, w) + il(pool.r, w);  // window take-home vs HODL; quote THIS
 const realizedApr = (realizedPct / pool.days) * 365;   // optional label, not "what they made"
 const misleading  = pool.adv > 0 && realizedPct < 0;   // advertised profit, window was a loss
 ```
