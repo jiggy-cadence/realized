@@ -7,7 +7,7 @@
     "realized-lp-mcp": "./bin/mcp-server.js"
   },
   "scripts": {
-    "test": "node test/canary.test.js && node test/docs.test.js",
+    "test": "node test/canary.test.js && node test/docs.test.js && node test/panel.test.js",
     "corpus": "node scripts/build-corpus.js",
     "test:docs": "node test/docs.test.js"
   },

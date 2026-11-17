@@ -27,7 +27,7 @@
  * label outruns what was actually checked.
  */
 
-import { concentratedIlPct, outOfRange, RANGES, realizedVsHodlPct } from './concentrated.js';
+import { concentratedIlPct, outOfRange, RANGES, realizedVsHodlPct, isFullRange } from './concentrated.js';
 
 const UNISWAP_V3_MAINNET = '5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV';
 
@@ -249,6 +249,20 @@ export function simulateExit(pool, rangeWidthX = 2, stakeUsd = 10_000, opts = {}
   };
 }
 
+/**
+ * Calendar days covered by a day series, first to last row inclusive. poolDayData has no
+ * row for a day with no activity, so the row count undercounts elapsed time on a gappy
+ * series and an APR annualised by it is inflated. Falls back to the row count when the
+ * rows carry no usable date.
+ */
+export function calendarDaysSpanned(days) {
+  if (!days.length) return 0;
+  const t = (d) => (typeof d.date === 'number' ? d.date * 1000 : Date.parse(d.date));
+  const a = t(days[0]), b = t(days[days.length - 1]);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return days.length;
+  return Math.max(days.length, Math.round(Math.abs(b - a) / 86400000) + 1);
+}
+
 export function positionRealized(pool, rangeWidthX = 2) {
   const days = pool?.poolDayData ?? [];
   // NOTE: fetchPoolFrom returns ASCENDING (oldest first) by construction -- scorePool's
@@ -267,15 +281,16 @@ export function positionRealized(pool, rangeWidthX = 2) {
   const ratio = pNow / pEntry;
   const totalFeesUsd = days.reduce((s, d) => s + Number(d.feesUSD || 0), 0);
   const feeReturnPct = (totalFeesUsd / entryTvl) * 100;
-  const il = rangeWidthX >= 1e6
+  const il = isFullRange(rangeWidthX)
     ? impermanentLossPct(ratio)
     : concentratedIlPct(ratio, rangeWidthX);
   if (il === null) return { measurable: false, reason: `IL unmeasurable at ratio ${ratio.toExponential(2)}` };
 
   const realizedPct = realizedVsHodlPct(feeReturnPct, il, ratio, rangeWidthX);
   const n = days.length;
-  const realizedAprPct = (realizedPct / n) * 365;
-  const out = rangeWidthX < 1e6 && outOfRange(ratio, rangeWidthX);
+  const calendarDays = calendarDaysSpanned(days);
+  const realizedAprPct = (realizedPct / calendarDays) * 365;
+  const out = !isFullRange(rangeWidthX) && outOfRange(ratio, rangeWidthX);
 
   return {
     measurable: true,
@@ -283,6 +298,7 @@ export function positionRealized(pool, rangeWidthX = 2) {
     entryDate: typeof entry.date === 'number' ? new Date(entry.date * 1000).toISOString().slice(0, 10) : entry.date,
     latestDate: typeof latest.date === 'number' ? new Date(latest.date * 1000).toISOString().slice(0, 10) : latest.date,
     daysHeld: n,
+    calendarDaysHeld: calendarDays,
     rangeWidthX,
     entryPrice: pEntry,
     currentPrice: pNow,
@@ -314,7 +330,7 @@ function dailyRealizedSeriesFromAscending(chrono, pEntry, w = 1e8) {
     const p = Number(d.token0Price || 0);
     if (p <= 0) { points.push({ date, realizedReturnPct: null }); continue; }
     const ratio = p / pEntry;
-    const il = w >= 1e6 ? impermanentLossPct(ratio) : concentratedIlPct(ratio, w);
+    const il = isFullRange(w) ? impermanentLossPct(ratio) : concentratedIlPct(ratio, w);
     const rz = realizedVsHodlPct((cumFeesUsd / entryTvl) * 100, il, ratio, w);
     if (rz === null) { points.push({ date, realizedReturnPct: null }); continue; }
     points.push({ date, realizedReturnPct: Number(rz.toFixed(3)) });

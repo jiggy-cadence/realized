@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * spike-hunt4.js — does the selection edge survive WALK-FORWARD?
+ * spike-hunt7.js (walk-forward, continued from spike-hunt4.js) — does the selection edge survive WALK-FORWARD?
  *
  * spike-hunt3 found: score pools on days 1-15, hold the top quintile through
  * days 16-30, and you beat the median pool by +1.638pp with p=0.0000 against
@@ -23,7 +23,7 @@
  * holdout. They are not fully independent (adjacent windows share market regime)
  * and that caveat ships with the number rather than being hidden.
  *
- * Run: GRAPH_API_KEY=*** node scripts/spike-hunt4.js
+ * Run: GRAPH_API_KEY=*** node scripts/spike-hunt7.js
  */
 import { writeFileSync } from 'fs';
 import { gatewayUrl, fetchTopPools, impermanentLossPct } from '../lib/realized.js';

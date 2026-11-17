@@ -98,6 +98,14 @@ async function cached(bucket, key, fn) {
   return value;
 }
 
+// Same rule as bin/mcp-server.js: never hand a raw exception string to a caller. fetch()
+// failures can carry the request URL, and the gateway URL embeds the Graph API key.
+export const safeError = (e, key = process.env.GRAPH_API_KEY) => {
+  const raw = String((e && e.message) || e);
+  const scrubbed = key ? raw.split(key).join('<redacted>') : raw;
+  return scrubbed.replace(/gateway\.thegraph\.com\/api\/[^/\s]+/g, 'gateway.thegraph.com/api/<redacted>');
+};
+
 const json = (res, code, obj) => {
   const body = JSON.stringify(obj, null, 2);
   res.writeHead(code, {
@@ -577,7 +585,7 @@ const server = createServer(async (req, res) => {
 
     return json(res, 404, { error: 'not found', spec: '/openapi.json', try: ['/api/pools', '/api/find?q=WETH', '/api/pool/{id}', '/api/position/{id}?entry=2026-08-01', '/api/simulate-exit/{id}?entry=2026-08-01&stake=10000', '/api/wallet/{address}', '/api/audit', '/api/venues'] });
   } catch (e) {
-    return json(res, 500, { error: String(e.message || e) });
+    return json(res, 500, { error: safeError(e) });
   }
 });
 

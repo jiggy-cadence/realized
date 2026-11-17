@@ -52,8 +52,7 @@ export function concentratedIlPct(r, w) {
  */
 export function feeVsHodlPct(feeReturnPct, r, w = 1e8) {
   if (!(r > 0) || !(w > 1)) return null;
-  // w >= 1e6 is treated as full range elsewhere (v2 formula), so use v2's exact HODL ratio.
-  return feeReturnPct * (w >= 1e6 ? 2 / (1 + r) : hodlValue(1, w) / hodlValue(r, w));
+  return feeReturnPct * (isFullRange(w) ? 2 / (1 + r) : hodlValue(1, w) / hodlValue(r, w));
 }
 
 /** LP-vs-HODL realized return, both terms on the HODL-at-exit basis. */
@@ -61,6 +60,14 @@ export function realizedVsHodlPct(feeReturnPct, ilPct, r, w = 1e8) {
   const f = feeVsHodlPct(feeReturnPct, r, w);
   return f === null || ilPct === null ? null : f + ilPct;
 }
+
+/**
+ * One threshold for "this width is full range, use the v2 formula". RANGES labels full
+ * range as w = 1e8, but any w at or above FULL_RANGE_MIN_W is treated the same way by
+ * both the fee term here and the IL term in realized.js, so the two never disagree.
+ */
+export const FULL_RANGE_MIN_W = 1e6;
+export const isFullRange = (w) => w >= FULL_RANGE_MIN_W;
 
 /** Did price leave the band? Then the loss is realized, not impermanent. */
 export function outOfRange(r, w) {
