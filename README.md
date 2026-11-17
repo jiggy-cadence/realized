@@ -332,7 +332,7 @@ case for the pool** — so we report every range, and the finding has to survive
 > [`concentrated.js`](packages/core/src/concentrated.js); canary in `test/canary.test.js`).
 > Re-scoring the stored 2026-09-12 corpus (`data/corpus.json`, 102 live pools) moves the
 > misleading share by at most one pool per range (tight 60.8→60.8%, moderate 53.9→54.9%,
-> wide 43.1→44.1%, full 37.3→36.3%). Medians move ≤0.01 pt. The table below has not been
+> wide 43.1→44.1%, full 37.3→36.3%). Medians move ≤0.01 pt. The table above has not been
 > regenerated yet, and the conclusion holds at every range.
 
 Every row is the same 102 live volatile pools over the same 30-day window. Only the assumed
